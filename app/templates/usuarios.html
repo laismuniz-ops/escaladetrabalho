@@ -112,8 +112,9 @@
                 </td>
                 <td>
                     <div class="flex gap-2 justify-end">
-                        <button onclick="abrirEditar({{ u.id }}, {{ u|tojson }})"
-                                class="gs-btn gs-btn-ghost text-xs py-1 px-3">Editar</button>
+                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-3 btn-editar"
+                                data-id="{{ u.id }}"
+                                data-usuario='{{ u | tojson }}'>Editar</button>
                         <form method="post" action="/api/usuarios/{{ u.id }}/remover"
                               onsubmit="return confirm('Remover {{ u.nome }}?')">
                             <button type="submit" class="gs-btn gs-btn-danger text-xs py-1 px-3">Remover</button>
@@ -170,6 +171,14 @@
 {% block scripts %}
 <script>
 const ABAS = {{ ABAS_DISPONIVEIS | tojson }};
+
+document.querySelectorAll('.btn-editar').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const u = JSON.parse(btn.dataset.usuario);
+        abrirEditar(id, u);
+    });
+});
 
 function abrirEditar(id, u) {
     document.getElementById('modal-form').action = `/api/usuarios/${id}/atualizar`;
