@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GS Escala de Trabalho{% endblock %}</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                black:  '#000000',
+                white:  '#FFFFFF',
+                grey:   '#80807b',
+                warm:   '#827155',
+                surface:'#f5f5f4',
+                card:   '#ffffff',
+                border: '#e5e5e3',
+              }
+            },
+            fontFamily: { sans: ['Nunito', 'sans-serif'] }
+          }
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="bg-brand-surface text-black min-h-screen font-sans">
+
+    <nav class="bg-black border-b border-gray-800">
+        <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center gap-6 flex-wrap">
+
+            <!-- Logo -->
+            <a href="/" class="flex items-center gap-3 mr-4">
+                <img src="/static/logo.png" alt="Singular" class="logo-img" style="mix-blend-mode:screen;"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div class="logo-text-fallback" style="display:none">
+                    <span style="display:block">sin</span>
+                    <span style="display:block">gular</span>
+                </div>
+            </a>
+
+            {% if usuario %}
+            {% set u = usuario %}
+
+            <!-- Links de navegação -->
+            {% if u.is_admin or 'dia' in u.abas_permitidas %}
+            <a href="/" class="nav-link {% if request.url.path == '/' %}nav-active{% endif %}">Equipe do dia</a>
+            {% endif %}
+            {% if u.is_admin or 'grade' in u.abas_permitidas %}
+            <a href="/grade" class="nav-link {% if '/grade' in request.url.path or '/pdf' in request.url.path %}nav-active{% endif %}">Grade mensal</a>
+            {% endif %}
+            {% if u.is_admin or 'individual' in u.abas_permitidas %}
+            <a href="/funcionario/1" class="nav-link {% if '/funcionario' in request.url.path %}nav-active{% endif %}">Individual</a>
+            {% endif %}
+            {% if u.is_admin or 'cadastros' in u.abas_permitidas %}
+            <a href="/cadastros" class="nav-link {% if '/cadastros' in request.url.path %}nav-active{% endif %}">Cadastros</a>
+            {% endif %}
+            {% if u.is_admin or 'usuarios' in u.abas_permitidas %}
+            <a href="/usuarios" class="nav-link {% if '/usuarios' in request.url.path %}nav-active{% endif %}">Usuários</a>
+            {% endif %}
+
+            <!-- Usuário -->
+            <div class="ml-auto flex items-center gap-3">
+                <span class="text-gray-400 text-xs hidden sm:block">{{ u.nome }}</span>
+                {% if u.is_admin %}
+                <span class="text-[0.58rem] bg-white text-black px-2 py-0.5 rounded tracking-wider uppercase font-bold">Admin</span>
+                {% endif %}
+                <form method="post" action="/logout">
+                    <button type="submit" class="text-xs text-gray-400 hover:text-white transition border border-gray-700 px-3 py-1 rounded font-semibold">
+                        Sair
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+        </div>
+    </nav>
+
+    <main class="max-w-screen-xl mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

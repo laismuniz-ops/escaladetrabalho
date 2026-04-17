@@ -1,0 +1,184 @@
+/* ── Identidade Visual — Grupo Singular ── */
+
+:root {
+  --black:   #000000;
+  --white:   #FFFFFF;
+  --grey:    #80807b;
+  --surface: #f5f5f4;
+  --card:    #ffffff;
+  --border:  #e5e5e3;
+}
+
+/* Scrollbar discreta */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+/* Navegação — fundo preto */
+.nav-link {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #888888;
+  transition: color 0.15s;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+}
+.nav-link:hover { color: #ffffff; }
+.nav-active {
+  color: #ffffff !important;
+  border-bottom-color: #ffffff;
+}
+
+/* Logo */
+.logo-img {
+  height: 64px;
+  width: auto;
+  display: block;
+}
+/* Fallback texto caso logo não exista */
+.logo-text-fallback {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 1.1rem;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+}
+
+/* Cards / superfícies */
+.gs-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* Títulos de seção */
+.gs-section-title {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+/* Setor header na grade */
+.setor-header {
+  background: var(--black);
+  color: var(--white);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  padding: 6px 10px;
+}
+
+/* Células da grade */
+.grade-cell {
+  cursor: pointer;
+  user-select: none;
+  min-width: 36px;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 1px;
+  border: 1px solid var(--border);
+  transition: transform 0.08s ease, outline 0.08s ease;
+  letter-spacing: 0.02em;
+}
+.grade-cell:hover {
+  transform: scale(1.08);
+  outline: 2px solid var(--black);
+  z-index: 2;
+  position: relative;
+}
+
+/* Turnos */
+.turno-MANHA       { background: #fef3c7; color: #78350f; border: 1px solid #fcd34d; }
+.turno-TARDE       { background: #fed7aa; color: #7c2d12; border: 1px solid #fb923c; }
+.turno-compound    { background: linear-gradient(to bottom, #fef3c7 50%, #fed7aa 50%); color: #7c2d12; border: 1px solid #fb923c; }
+.turno-FOLGA       { background: #dcfce7; color: #14532d; border: 1px solid #86efac; }
+.turno-FERIAS      { background: #e0f2fe; color: #0c4a6e; border: 1px solid #7dd3fc; font-weight: 800; }
+.turno-AFASTAMENTO { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; font-weight: 800; }
+.turno-vazio       { background: #fafafa; color: #d4d4d4; }
+
+/* Domingo na grade */
+.domingo-header { background: #b91c1c !important; color: #ffffff !important; }
+
+/* Badge extra */
+.badge-extra {
+  font-size: 0.55rem;
+  background: #f3f4f6;
+  color: #374151;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid #d1d5db;
+}
+
+/* Inputs */
+.gs-input {
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--black);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.gs-input:focus {
+  outline: none;
+  border-color: var(--black);
+}
+.gs-input option { background: #fff; color: var(--black); }
+
+/* Botões */
+.gs-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 6px;
+  padding: 8px 18px;
+  transition: opacity 0.15s;
+  cursor: pointer;
+  border: none;
+}
+.gs-btn:hover { opacity: 0.82; }
+.gs-btn-primary  { background: var(--black); color: var(--white); }
+.gs-btn-warm     { background: var(--black); color: var(--white); }
+.gs-btn-danger   { background: #fee2e2;      color: #9f1239; border: 1px solid #fecdd3; }
+.gs-btn-ghost    { background: transparent;  color: var(--grey); border: 1px solid var(--border); }
+
+/* Checkbox */
+input[type="checkbox"].gs-check {
+  accent-color: var(--black);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* Tabelas */
+.gs-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.gs-table thead th {
+  background: var(--surface);
+  color: var(--grey);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+.gs-table tbody tr { border-bottom: 1px solid var(--border); }
+.gs-table tbody tr:hover { background: var(--surface); }
+.gs-table tbody td { padding: 10px 12px; color: var(--black); }
+
+/* Alertas */
+.gs-alert-ok   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; }
+.gs-alert-erro { background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239; border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; }

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GS Escala de Trabalho</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/app.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000000;
+            color: #ffffff;
+            font-family: 'Nunito', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-wrap {
+            width: 100%;
+            max-width: 360px;
+            padding: 0 24px;
+        }
+        .logo-block {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        /* Logo imagem */
+        .logo-img {
+            height: 72px;
+            width: auto;
+            display: inline-block;
+        }
+        /* Fallback texto se não tiver imagem */
+        .logo-text-fallback {
+            font-weight: 900;
+            font-size: 2.8rem;
+            letter-spacing: -0.04em;
+            line-height: 0.95;
+            color: #fff;
+            display: inline-block;
+        }
+        .logo-text-fallback span { display: block; }
+        .logo-subtitle {
+            margin-top: 16px;
+            font-size: 0.58rem;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: #80807b;
+            font-weight: 700;
+        }
+        .logo-title {
+            font-size: 0.72rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #ffffff;
+            font-weight: 800;
+            margin-top: 4px;
+        }
+        .divider {
+            width: 28px;
+            height: 2px;
+            background: #ffffff;
+            margin: 18px auto;
+        }
+        .form-label {
+            display: block;
+            font-size: 0.58rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #80807b;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .form-group { margin-bottom: 14px; }
+        .form-input {
+            width: 100%;
+            background: #1a1a1a;
+            border: 1px solid #333333;
+            color: #ffffff;
+            border-radius: 6px;
+            padding: 11px 14px;
+            font-size: 0.88rem;
+            font-family: 'Nunito', sans-serif;
+            transition: border-color 0.15s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #ffffff;
+            background: #222222;
+        }
+        .btn-login {
+            width: 100%;
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            border-radius: 6px;
+            padding: 13px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            font-family: 'Nunito', sans-serif;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: opacity 0.15s;
+        }
+        .btn-login:hover { opacity: 0.82; }
+        .erro-msg {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            color: #9f1239;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            margin-bottom: 18px;
+            text-align: center;
+        }
+        .footer-copy {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 0.58rem;
+            letter-spacing: 0.15em;
+            color: #ccc;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrap">
+        <div class="logo-block">
+            <!-- Logo real — coloque logo.png em app/static/ -->
+            <img src="/static/logo.png" alt="Singular" class="logo-img"
+                 onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='inline-block'">
+            <div id="logo-fallback" class="logo-text-fallback" style="display:none">
+                <span>sin</span><span>gular</span>
+            </div>
+
+            <div class="divider"></div>
+            <div class="logo-subtitle">Grupo Singular</div>
+            <div class="logo-title">Escala de Trabalho</div>
+        </div>
+
+        {% if erro %}
+        <div class="erro-msg">{{ erro }}</div>
+        {% endif %}
+
+        <form method="post" action="/login">
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="form-group">
+                <label class="form-label" for="username">Usuário</label>
+                <input class="form-input" type="text" id="username" name="username"
+                       autocomplete="username" autofocus required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="senha">Senha</label>
+                <input class="form-input" type="password" id="senha" name="senha"
+                       autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn-login">Entrar</button>
+        </form>
+
+        <div class="footer-copy">Singular Sushi® &nbsp;·&nbsp; 2026</div>
+    </div>
+</body>
+</html>

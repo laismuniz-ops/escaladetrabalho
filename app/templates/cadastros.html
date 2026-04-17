@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Cadastros — GS Escala de Trabalho{% endblock %}
+
+{% macro render_lista(titulo, lista) %}
+<div class="gs-card overflow-hidden">
+    <div class="px-6 py-4 border-b border-brand-border flex items-center justify-between">
+        <h2 class="gs-section-title">{{ titulo }} <span class="ml-1">({{ lista|length }})</span></h2>
+    </div>
+    {% if not lista %}
+        <p class="p-6 text-brand-grey text-sm">Nenhum cadastrado.</p>
+    {% else %}
+    <div class="overflow-x-auto">
+    <table class="gs-table">
+        <thead>
+            <tr>
+                <th class="w-16 text-center">Ordem</th>
+                <th>Nome</th>
+                <th>Cargo</th>
+                <th>Setor</th>
+                <th>Tipo</th>
+                <th class="text-center">Status</th>
+                <th class="text-right">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for f in lista %}
+        <tr id="row-{{ f.id }}" class="{% if not f.ativo %}opacity-50{% endif %}">
+            <!-- Formulário oculto para salvar dados -->
+            <form method="post" action="/api/funcionarios/{{ f.id }}/atualizar" id="ff-{{ f.id }}" class="hidden">
+                <input type="hidden" name="ativo" id="ativo-hidden-{{ f.id }}" value="{{ '1' if f.ativo else '0' }}">
+            </form>
+
+            <!-- Ordem: botões ↑ ↓ -->
+            <td class="text-center">
+                <div class="flex flex-col items-center gap-0.5">
+                    <form method="post" action="/api/funcionarios/{{ f.id }}/mover" class="inline">
+                        <input type="hidden" name="direcao" value="up">
+                        <button type="submit" class="text-brand-grey hover:text-black text-xs leading-none px-1.5 py-1 rounded hover:bg-brand-surface transition"
+                                title="Mover para cima">↑</button>
+                    </form>
+                    <form method="post" action="/api/funcionarios/{{ f.id }}/mover" class="inline">
+                        <input type="hidden" name="direcao" value="down">
+                        <button type="submit" class="text-brand-grey hover:text-black text-xs leading-none px-1.5 py-1 rounded hover:bg-brand-surface transition"
+                                title="Mover para baixo">↓</button>
+                    </form>
+                </div>
+            </td>
+
+            <td><input form="ff-{{ f.id }}" name="nome" value="{{ f.nome }}" class="gs-input text-sm py-1.5"></td>
+            <td><input form="ff-{{ f.id }}" name="cargo" value="{{ f.cargo }}" class="gs-input text-sm py-1.5"></td>
+            <td>
+                <select form="ff-{{ f.id }}" name="setor" class="gs-input text-sm py-1.5 w-auto">
+                    {% for s in ['COZINHA','ATENDIMENTO','ADMINISTRATIVO'] %}
+                    <option value="{{ s }}" {% if f.setor == s %}selected{% endif %}>{{ s|capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <select form="ff-{{ f.id }}" name="tipo" class="gs-input text-sm py-1.5 w-auto">
+                    <option value="CONTRATADO" {% if f.tipo == 'CONTRATADO' %}selected{% endif %}>Contratado</option>
+                    <option value="EXTRA" {% if f.tipo == 'EXTRA' %}selected{% endif %}>Extra</option>
+                </select>
+            </td>
+
+            <!-- Status: toggle ativo/inativo -->
+            <td class="text-center">
+                <button type="button"
+                        class="btn-toggle-ativo gs-btn text-xs py-1 px-3 {% if f.ativo %}gs-btn-primary{% else %}gs-btn-ghost{% endif %}"
+                        data-id="{{ f.id }}" data-ativo="{{ '1' if f.ativo else '0' }}">
+                    {{ 'Ativo' if f.ativo else 'Inativo' }}
+                </button>
+            </td>
+
+            <td>
+                <div class="flex gap-2 justify-end">
+                    <button form="ff-{{ f.id }}" type="submit" class="gs-btn gs-btn-ghost text-xs py-1.5 px-3">Salvar</button>
+                    <form method="post" action="/api/funcionarios/{{ f.id }}/remover"
+                          onsubmit="return confirm('Remover {{ f.nome }}? Toda a escala será apagada.')">
+                        <button type="submit" class="gs-btn gs-btn-danger text-xs py-1.5 px-3">Remover</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div>
+        <p class="gs-section-title">Gestão</p>
+        <h1 class="text-2xl font-bold tracking-wide uppercase mt-1">Cadastro de Funcionários</h1>
+    </div>
+
+    <!-- Novo funcionário -->
+    <div class="gs-card p-6">
+        <h2 class="gs-section-title mb-4">Novo Funcionário</h2>
+        <form method="post" action="/api/funcionarios">
+            <div class="grid md:grid-cols-5 gap-3">
+                <input name="nome" placeholder="Nome" required class="gs-input md:col-span-2">
+                <input name="cargo" placeholder="Cargo" required class="gs-input">
+                <select name="setor" required class="gs-input">
+                    <option value="">Setor...</option>
+                    <option value="COZINHA">Cozinha</option>
+                    <option value="ATENDIMENTO">Atendimento</option>
+                    <option value="ADMINISTRATIVO">Administrativo</option>
+                </select>
+                <select name="tipo" required class="gs-input">
+                    <option value="CONTRATADO">Contratado</option>
+                    <option value="EXTRA">Extra</option>
+                </select>
+                <button type="submit" class="gs-btn gs-btn-primary md:col-span-5">+ Cadastrar</button>
+            </div>
+        </form>
+    </div>
+
+    {{ render_lista("Contratados", contratados) }}
+    {{ render_lista("Extras", extras) }}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".btn-toggle-ativo").forEach(btn => {
+    btn.addEventListener("click", async () => {
+        const id    = btn.dataset.id;
+        const atual = btn.dataset.ativo === "1";
+        try {
+            const resp = await fetch(`/api/funcionarios/${id}/toggle-ativo`, { method: "POST" });
+            const json = await resp.json();
+            if (!json.ok) throw new Error();
+            const novoAtivo = json.ativo;
+            btn.dataset.ativo = novoAtivo ? "1" : "0";
+            btn.textContent   = novoAtivo ? "Ativo" : "Inativo";
+            btn.className = "btn-toggle-ativo gs-btn text-xs py-1 px-3 " + (novoAtivo ? "gs-btn-primary" : "gs-btn-ghost");
+            // Atualiza o campo oculto do form de salvar
+            const hidden = document.getElementById(`ativo-hidden-${id}`);
+            if (hidden) hidden.value = novoAtivo ? "1" : "0";
+            // Aplica opacidade na linha
+            const row = document.getElementById(`row-${id}`);
+            if (row) row.classList.toggle("opacity-50", !novoAtivo);
+        } catch {
+            alert("Erro ao alterar status.");
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Usuários — GS Escala de Trabalho{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="gs-section-title">Administração</p>
+            <h1 class="text-xl font-bold tracking-wide uppercase mt-1">Usuários do Sistema</h1>
+        </div>
+    </div>
+
+    {% if ok %}<div class="gs-alert-ok">{{ ok }}</div>{% endif %}
+    {% if erro %}<div class="gs-alert-erro">{{ erro }}</div>{% endif %}
+
+    <!-- Novo usuário -->
+    <div class="gs-card p-6">
+        <h2 class="gs-section-title mb-4">Novo Usuário</h2>
+        <form method="post" action="/api/usuarios">
+            <div class="grid md:grid-cols-3 gap-3 mb-3">
+                <div>
+                    <label class="gs-section-title block mb-1">Usuário (login)</label>
+                    <input name="username" placeholder="ex: jaqueline" required class="gs-input">
+                </div>
+                <div>
+                    <label class="gs-section-title block mb-1">Nome completo</label>
+                    <input name="nome" placeholder="ex: Jaqueline Paixão" required class="gs-input">
+                </div>
+                <div>
+                    <label class="gs-section-title block mb-1">Senha</label>
+                    <input name="senha" type="password" placeholder="••••••••" required class="gs-input">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="gs-section-title block mb-2">Abas permitidas</label>
+                <div class="flex flex-wrap gap-3">
+                    {% for aba in ABAS_DISPONIVEIS %}
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" name="abas" value="{{ aba }}" class="gs-check">
+                        <span class="capitalize text-brand-grey hover:text-black transition">{{ aba }}</span>
+                    </label>
+                    {% endfor %}
+                    <label class="flex items-center gap-2 cursor-pointer text-sm ml-4 border-l border-brand-border pl-4">
+                        <input type="checkbox" name="is_admin" value="1" class="gs-check"
+                               onchange="this.closest('form').querySelectorAll('[name=abas]').forEach(c=>c.disabled=this.checked)">
+                        <span class="font-bold">Admin (acesso total)</span>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="gs-btn gs-btn-primary">+ Criar usuário</button>
+        </form>
+    </div>
+
+    <!-- Lista de usuários -->
+    <div class="gs-card overflow-hidden">
+        <div class="px-6 py-4 border-b border-brand-border">
+            <h2 class="gs-section-title">Usuários cadastrados <span>({{ lista|length }})</span></h2>
+        </div>
+        {% if not lista %}
+            <p class="p-6 text-brand-grey text-sm">Nenhum usuário cadastrado.</p>
+        {% else %}
+        <div class="overflow-x-auto">
+        <table class="gs-table">
+            <thead>
+                <tr>
+                    <th>Nome / Login</th>
+                    <th>Tipo</th>
+                    <th>Abas</th>
+                    <th>Ativo</th>
+                    <th class="text-right">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in lista %}
+            <tr>
+                <td>
+                    <form method="post" action="/api/usuarios/{{ u.id }}/atualizar" id="uform-{{ u.id }}" class="hidden"></form>
+                    <div class="font-semibold">{{ u.nome }}</div>
+                    <div class="text-brand-grey text-xs">@{{ u.username }}</div>
+                    <!-- campos ocultos -->
+                    <input form="uform-{{ u.id }}" type="hidden" name="nome" value="{{ u.nome }}" id="inp-nome-{{ u.id }}">
+                </td>
+                <td>
+                    {% if u.is_admin %}
+                        <span class="text-xs bg-black text-white px-2 py-0.5 rounded uppercase tracking-wider font-bold">Admin</span>
+                    {% else %}
+                        <span class="text-xs border border-brand-border text-brand-grey px-2 py-0.5 rounded uppercase tracking-wider">Gestor</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.is_admin %}
+                        <span class="text-brand-grey text-xs italic">Todas</span>
+                    {% else %}
+                        <div class="flex flex-wrap gap-1">
+                        {% for aba in u.abas_list %}
+                            <span class="text-[0.6rem] border border-brand-border text-brand-grey px-1.5 py-0.5 rounded uppercase tracking-wider">{{ aba }}</span>
+                        {% else %}
+                            <span class="text-brand-grey text-xs italic">Nenhuma</span>
+                        {% endfor %}
+                        </div>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.ativo %}
+                        <span class="text-xs text-green-400">● Ativo</span>
+                    {% else %}
+                        <span class="text-xs text-brand-grey">○ Inativo</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="flex gap-2 justify-end">
+                        <button onclick="abrirEditar({{ u.id }}, {{ u|tojson }})"
+                                class="gs-btn gs-btn-ghost text-xs py-1 px-3">Editar</button>
+                        <form method="post" action="/api/usuarios/{{ u.id }}/remover"
+                              onsubmit="return confirm('Remover {{ u.nome }}?')">
+                            <button type="submit" class="gs-btn gs-btn-danger text-xs py-1 px-3">Remover</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de edição -->
+<div id="modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden">
+    <div class="gs-card p-6 w-full max-w-md mx-4">
+        <h2 class="gs-section-title mb-4">Editar Usuário</h2>
+        <form method="post" id="modal-form">
+            <div class="space-y-3 mb-4">
+                <div>
+                    <label class="gs-section-title block mb-1">Nome</label>
+                    <input name="nome" id="m-nome" required class="gs-input">
+                </div>
+                <div>
+                    <label class="gs-section-title block mb-1">Nova senha <span class="text-brand-grey font-normal normal-case">(deixe em branco pra manter)</span></label>
+                    <input name="senha" type="password" placeholder="••••••••" class="gs-input">
+                </div>
+                <div>
+                    <label class="gs-section-title block mb-2">Abas permitidas</label>
+                    <div class="flex flex-wrap gap-3" id="m-abas"></div>
+                </div>
+                <div class="flex items-center gap-4 pt-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" name="is_admin" value="1" id="m-admin" class="gs-check">
+                        <span class="font-bold text-sm">Admin</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" name="ativo" value="1" id="m-ativo" class="gs-check">
+                        <span class="text-sm">Ativo</span>
+                    </label>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button type="submit" class="gs-btn gs-btn-primary flex-1">Salvar</button>
+                <button type="button" onclick="fecharModal()" class="gs-btn gs-btn-ghost flex-1">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ABAS = {{ ABAS_DISPONIVEIS | tojson }};
+
+function abrirEditar(id, u) {
+    document.getElementById('modal-form').action = `/api/usuarios/${id}/atualizar`;
+    document.getElementById('m-nome').value = u.nome;
+    document.getElementById('m-admin').checked = !!u.is_admin;
+    document.getElementById('m-ativo').checked = !!u.ativo;
+
+    let abasAtivas = [];
+    try { abasAtivas = JSON.parse(u.abas_permitidas || '[]'); } catch(e) {}
+
+    const container = document.getElementById('m-abas');
+    container.innerHTML = ABAS.map(aba => `
+        <label class="flex items-center gap-2 cursor-pointer text-sm">
+            <input type="checkbox" name="abas" value="${aba}" class="gs-check"
+                   ${abasAtivas.includes(aba) ? 'checked' : ''}>
+            <span class="capitalize text-brand-grey">${aba}</span>
+        </label>
+    `).join('');
+
+    document.getElementById('modal').classList.remove('hidden');
+}
+function fecharModal() {
+    document.getElementById('modal').classList.add('hidden');
+}
+document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) fecharModal();
+});
+</script>
+{% endblock %}

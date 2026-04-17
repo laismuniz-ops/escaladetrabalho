@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block title %}Grade Mensal — GS Escala de Trabalho{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+            <p class="gs-section-title">Grade Mensal</p>
+            <h1 class="text-2xl font-bold tracking-wide uppercase mt-1">{{ nome_mes(mes) }} / {{ ano }}</h1>
+        </div>
+
+        <form method="get" class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-2">
+                <label class="gs-section-title">Mês</label>
+                <input type="month" name="mes" value="{{ mes_str }}" class="gs-input w-auto" onchange="this.form.submit()">
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="gs-section-title">Tipo</label>
+                <select name="tipo" class="gs-input w-auto" onchange="this.form.submit()">
+                    <option value="" {% if not tipo_filtro %}selected{% endif %}>Todos</option>
+                    <option value="CONTRATADO" {% if tipo_filtro == 'CONTRATADO' %}selected{% endif %}>Contratados</option>
+                    <option value="EXTRA" {% if tipo_filtro == 'EXTRA' %}selected{% endif %}>Extras</option>
+                </select>
+            </div>
+            <div class="flex gap-2">
+                <a href="/pdf/contratado?mes={{ mes_str }}" class="gs-btn gs-btn-primary text-xs py-2 px-3">↓ PDF Contratados</a>
+                <a href="/pdf/extra?mes={{ mes_str }}" class="gs-btn gs-btn-ghost text-xs py-2 px-3">↓ PDF Extras</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Legenda -->
+    <div class="flex items-center gap-3 flex-wrap">
+        <span class="turno-MANHA px-2 py-0.5 rounded text-xs font-bold">M — Manhã</span>
+        <span class="turno-TARDE px-2 py-0.5 rounded text-xs font-bold">T — Tarde</span>
+        <span class="turno-FOLGA px-2 py-0.5 rounded text-xs font-bold">F — Folga</span>
+        <span class="turno-FERIAS px-2 py-0.5 rounded text-xs font-bold">FE — Férias</span>
+        <span class="turno-AFASTAMENTO px-2 py-0.5 rounded text-xs font-bold">AF — Afastamento</span>
+    </div>
+
+    <!-- Painel de mínimos por dia da semana -->
+    <div class="gs-card px-4 py-3">
+        <p class="gs-section-title mb-3">Mínimos por turno e dia da semana</p>
+        <form method="post" action="/api/minimos">
+            <input type="hidden" name="mes" value="{{ mes_str }}">
+            <div class="overflow-x-auto">
+                <table class="text-xs border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="text-left pr-5 pb-2 gs-section-title whitespace-nowrap">Setor / Turno</th>
+                            {% for nome_dia in ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+                            <th class="px-2 pb-2 text-center gs-section-title">{{ nome_dia }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for setor_nome, setor_key in [('Cozinha','COZINHA'), ('Atendimento','ATENDIMENTO')] %}
+                        {% for turno_nome, turno_key in [('Manhã','MANHA'), ('Tarde','TARDE')] %}
+                        <tr>
+                            <td class="pr-5 py-1 whitespace-nowrap">
+                                <span class="font-semibold text-sm">{{ setor_nome }}</span>
+                                <span class="turno-{{ turno_key }} px-1.5 py-0.5 rounded text-[0.6rem] font-bold ml-1">{{ turno_nome }}</span>
+                            </td>
+                            {% for dia_num in range(7) %}
+                            <td class="px-2 py-1">
+                                <input type="number"
+                                       name="min_{{ setor_key }}_{{ turno_key }}_{{ dia_num }}"
+                                       value="{{ minimos[setor_key][turno_key][dia_num] }}"
+                                       min="0"
+                                       class="gs-input text-center text-xs py-1 w-12">
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button type="submit" class="gs-btn gs-btn-primary text-xs py-1.5 px-4 mt-3">Salvar mínimos</button>
+        </form>
+    </div>
+
+    <div class="gs-card overflow-auto" style="max-height: 75vh;">
+    <table class="border-collapse text-xs min-w-full">
+        <thead>
+            <tr>
+                <th class="sticky left-0 top-0 z-30 bg-white text-left px-3 py-2 min-w-[160px] text-brand-grey text-[0.6rem] tracking-widest uppercase font-bold border-b border-brand-border">Colaborador</th>
+                <th class="sticky left-[160px] top-0 z-30 bg-white text-left px-3 py-2 min-w-[130px] text-brand-grey text-[0.6rem] tracking-widest uppercase font-bold border-b border-brand-border">Cargo</th>
+                {% for d in dias %}
+                {% set iso_d = d.isoformat() %}
+                {% set tem_alerta = iso_d in dias_alerta %}
+                <th class="sticky top-0 z-20 px-1 py-1.5 text-center font-bold border-b border-brand-border
+                    {% if d.weekday() == 6 %}domingo-header{% else %}bg-white text-brand-grey{% endif %}
+                    {% if tem_alerta and d.weekday() != 6 %}th-alerta{% endif %}"
+                    {% if tem_alerta and d.weekday() != 6 %}
+                    data-alertas='{{ dias_alerta[iso_d] | tojson }}'
+                    {% endif %}>
+                    <div class="text-[0.55rem] tracking-wide leading-none">{{ dia_semana_curto(d) }}</div>
+                    <div class="text-[0.7rem] font-black leading-snug
+                        {% if d.weekday() != 6 %}{% if tem_alerta %}text-red-600{% else %}text-black{% endif %}{% endif %}">
+                        {{ d.day }}
+                    </div>
+                    {% if tem_alerta and d.weekday() != 6 %}
+                    <div class="w-full h-0.5 bg-red-500 rounded mt-0.5"></div>
+                    {% endif %}
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for setor in setores %}
+            <tr>
+                <td colspan="{{ dias|length + 2 }}" class="setor-header">{{ setor }}</td>
+            </tr>
+            {% for f in por_setor[setor] %}
+            {% set turnos = escalas.get(f.id, {}) %}
+            <tr class="border-b border-brand-border">
+                <td class="sticky left-0 z-10 bg-white px-3 py-2 font-semibold border-r border-brand-border">
+                    <a href="/funcionario/{{ f.id }}" class="hover:text-gray-500 transition">{{ f.nome }}</a>
+                    {% if f.tipo == 'EXTRA' %}<span class="badge-extra ml-1">extra</span>{% endif %}
+                </td>
+                <td class="sticky left-[160px] z-10 bg-white px-3 py-2 text-brand-grey border-r border-brand-border">{{ f.cargo }}</td>
+                {% for d in dias %}
+                {% set iso = d.isoformat() %}
+                {% set t = turnos.get(iso, '') %}
+                <td class="grade-cell {% if t == 'MANHA+TARDE' %}turno-compound{% elif t %}turno-{{ t }}{% else %}turno-vazio{% endif %}"
+                    data-func="{{ f.id }}" data-data="{{ iso }}" data-turno="{{ t }}"
+                    title="{{ f.nome }} — {{ d.strftime('%d/%m') }}">
+                    {% if t == 'MANHA+TARDE' %}M+T{% elif t == 'MANHA' %}M{% elif t == 'TARDE' %}T{% elif t == 'FOLGA' %}F{% elif t == 'FERIAS' %}FE{% elif t == 'AFASTAMENTO' %}AF{% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            {% endfor %}
+            {% if not setores %}
+            <tr><td colspan="{{ dias|length + 2 }}" class="text-center py-12 text-brand-grey">
+                Nenhum funcionário cadastrado. <a href="/cadastros" class="underline">Cadastrar</a>.
+            </td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Tooltip de alertas por dia -->
+<div id="alerta-tooltip" style="
+    display:none; position:fixed; z-index:2000;
+    background:#1f2937; color:#fff; border-radius:8px;
+    padding:8px 12px; font-size:0.72rem; line-height:1.6;
+    box-shadow:0 4px 16px rgba(0,0,0,0.25); pointer-events:none; max-width:220px;">
+</div>
+<style>
+.th-alerta { cursor: help; }
+</style>
+<script>
+(function() {
+    const tip = document.getElementById('alerta-tooltip');
+    const NOMES_SETOR = { COZINHA: 'Cozinha', ATENDIMENTO: 'Atendimento' };
+    const NOMES_TURNO = { MANHA: 'Manhã', TARDE: 'Tarde' };
+
+    document.querySelectorAll('.th-alerta').forEach(th => {
+        th.addEventListener('mouseenter', e => {
+            const alertas = JSON.parse(th.dataset.alertas || '[]');
+            if (!alertas.length) return;
+            tip.innerHTML = '<div style="font-weight:800;letter-spacing:0.1em;text-transform:uppercase;font-size:0.58rem;color:#f87171;margin-bottom:4px;">Deficit</div>'
+                + alertas.map(a =>
+                    `<div>⚠ <b>${NOMES_SETOR[a.setor]||a.setor}</b> – ${NOMES_TURNO[a.turno]||a.turno}: ` +
+                    `<span style="color:#fca5a5">${a.atual}/${a.minimo}</span> ` +
+                    `<span style="color:#9ca3af">(falta ${a.minimo - a.atual})</span></div>`
+                ).join('');
+            posicionar(e);
+            tip.style.display = 'block';
+        });
+        th.addEventListener('mousemove', posicionar);
+        th.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+    });
+
+    function posicionar(e) {
+        const x = e.clientX + 12;
+        const y = e.clientY + 12;
+        tip.style.left = Math.min(x, window.innerWidth - 230) + 'px';
+        tip.style.top  = Math.min(y, window.innerHeight - 120) + 'px';
+    }
+})();
+</script>
+
+<!-- Menu flutuante de seleção de turno -->
+<div id="turno-menu" style="
+    display:none; position:fixed; z-index:1000;
+    background:#fff; border:1px solid #e5e5e3; border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.15); padding:6px;
+    min-width:155px;">
+
+    <div style="font-size:0.55rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#80807b;padding:4px 8px 5px;">
+        Selecione o turno
+    </div>
+
+    <!-- MANHA e TARDE: podem ser combinados -->
+    <button id="tm-MANHA" data-turno="MANHA" class="tm-toggle"
+        style="background:#fef3c7;color:#78350f;border:1px solid #fcd34d;">
+        <span class="tm-check">☐</span> M — Manhã
+    </button>
+    <button id="tm-TARDE" data-turno="TARDE" class="tm-toggle"
+        style="background:#fed7aa;color:#7c2d12;border:1px solid #fb923c;">
+        <span class="tm-check">☐</span> T — Tarde
+    </button>
+
+    <div style="border-top:1px solid #e5e5e3;margin:4px 2px;"></div>
+
+    <!-- Exclusivos -->
+    <button data-turno="FOLGA"       class="tm-excl" style="background:#dcfce7;color:#14532d;border:1px solid #86efac;">F — Folga</button>
+    <button data-turno="FERIAS"      class="tm-excl" style="background:#e0f2fe;color:#0c4a6e;border:1px solid #7dd3fc;">FE — Férias</button>
+    <button data-turno="AFASTAMENTO" class="tm-excl" style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;">AF — Afastamento</button>
+
+    <div style="border-top:1px solid #e5e5e3;margin:4px 2px;"></div>
+
+    <div style="display:flex;gap:4px;padding:2px;">
+        <button id="tm-aplicar" style="
+            flex:1;background:#000;color:#fff;border:none;border-radius:6px;
+            padding:6px 8px;font-size:0.68rem;font-weight:700;cursor:pointer;letter-spacing:0.08em;">
+            Aplicar
+        </button>
+        <button id="tm-limpar" style="
+            background:#fafafa;color:#999;border:1px solid #e5e5e3;border-radius:6px;
+            padding:6px 8px;font-size:0.68rem;font-weight:700;cursor:pointer;">
+            ✕
+        </button>
+    </div>
+</div>
+
+<style>
+.tm-toggle, .tm-excl {
+    display:block; width:100%; text-align:left;
+    padding:6px 10px; margin:2px 0; border-radius:6px;
+    font-size:0.72rem; font-weight:700; cursor:pointer;
+    transition:filter 0.1s, outline 0.1s;
+}
+.tm-toggle:hover, .tm-excl:hover { filter: brightness(0.93); }
+.tm-toggle.ativo { outline: 2px solid #000; outline-offset: -2px; }
+.tm-check { font-style:normal; margin-right:2px; }
+</style>
+
+<script>
+// Helpers de label e classe CSS para a célula
+function labelTurno(t) {
+    const M = { MANHA:"M", TARDE:"T", FOLGA:"F", FERIAS:"FE", AFASTAMENTO:"AF" };
+    if (!t) return "";
+    return t.split("+").map(p => M[p] || p).join("+");
+}
+function classeTurno(t) {
+    if (!t) return "grade-cell turno-vazio";
+    if (t === "MANHA+TARDE") return "grade-cell turno-compound";
+    return "grade-cell turno-" + t;
+}
+
+const menu = document.getElementById("turno-menu");
+let cellAtiva = null;
+let selecionados = new Set(); // "MANHA" e/ou "TARDE"
+let exclusivo = "";           // "FOLGA" | "FERIAS" | "AFASTAMENTO" | ""
+
+function atualizarVisualMenu() {
+    ["MANHA","TARDE"].forEach(t => {
+        const btn = document.getElementById("tm-" + t);
+        const check = btn.querySelector(".tm-check");
+        if (selecionados.has(t)) {
+            btn.classList.add("ativo");
+            check.textContent = "☑";
+        } else {
+            btn.classList.remove("ativo");
+            check.textContent = "☐";
+        }
+    });
+}
+
+function abrirMenu(cell) {
+    cellAtiva = cell;
+    const turnoAtual = cell.dataset.turno || "";
+    selecionados.clear();
+    exclusivo = "";
+    turnoAtual.split("+").forEach(p => {
+        if (p === "MANHA" || p === "TARDE") selecionados.add(p);
+        else if (p) exclusivo = p;
+    });
+    atualizarVisualMenu();
+
+    const rect = cell.getBoundingClientRect();
+    const menuH = 270;
+    let top = rect.bottom + 4;
+    if (top + menuH > window.innerHeight) top = rect.top - menuH - 4;
+    let left = rect.left;
+    if (left + 165 > window.innerWidth) left = window.innerWidth - 168;
+    menu.style.top  = top + "px";
+    menu.style.left = left + "px";
+    menu.style.display = "block";
+}
+
+function fecharMenu() {
+    menu.style.display = "none";
+    cellAtiva = null;
+}
+
+async function salvarTurno(turno) {
+    if (!cellAtiva) return;
+    const fd = new FormData();
+    fd.append("funcionario_id", cellAtiva.dataset.func);
+    fd.append("data", cellAtiva.dataset.data);
+    fd.append("turno", turno);
+    try {
+        const resp = await fetch("/api/escala/set", { method: "POST", body: fd });
+        if (!resp.ok) throw new Error();
+        cellAtiva.dataset.turno = turno;
+        cellAtiva.className = classeTurno(turno);
+        cellAtiva.textContent = labelTurno(turno);
+    } catch {
+        alert("Erro ao salvar turno.");
+    }
+    fecharMenu();
+}
+
+// Células da grade
+document.querySelectorAll(".grade-cell").forEach(cell => {
+    cell.addEventListener("click", ev => {
+        ev.stopPropagation();
+        if (cellAtiva === cell) { fecharMenu(); return; }
+        abrirMenu(cell);
+    });
+});
+
+// Toggle MANHA / TARDE (podem combinar)
+document.querySelectorAll(".tm-toggle").forEach(btn => {
+    btn.addEventListener("click", ev => {
+        ev.stopPropagation();
+        const t = btn.dataset.turno;
+        exclusivo = "";
+        if (selecionados.has(t)) selecionados.delete(t);
+        else selecionados.add(t);
+        atualizarVisualMenu();
+    });
+});
+
+// Exclusivos: FOLGA, FERIAS, AFASTAMENTO
+document.querySelectorAll(".tm-excl").forEach(btn => {
+    btn.addEventListener("click", ev => {
+        ev.stopPropagation();
+        selecionados.clear();
+        exclusivo = btn.dataset.turno;
+        atualizarVisualMenu();
+        // Exclusivos aplicam direto sem precisar clicar Aplicar
+        salvarTurno(exclusivo);
+    });
+});
+
+// Aplicar seleção de MANHA / TARDE
+document.getElementById("tm-aplicar").addEventListener("click", ev => {
+    ev.stopPropagation();
+    let turno = "";
+    if (selecionados.size > 0) {
+        const ordem = ["MANHA","TARDE"].filter(t => selecionados.has(t));
+        turno = ordem.join("+");
+    } else if (exclusivo) {
+        turno = exclusivo;
+    }
+    salvarTurno(turno);
+});
+
+// Limpar
+document.getElementById("tm-limpar").addEventListener("click", ev => {
+    ev.stopPropagation();
+    salvarTurno("");
+});
+
+// Fechar ao clicar fora / Esc
+document.addEventListener("click", fecharMenu);
+document.addEventListener("keydown", e => { if (e.key === "Escape") fecharMenu(); });
+</script>
+{% endblock %}

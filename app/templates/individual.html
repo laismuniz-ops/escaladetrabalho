@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}{{ func.nome }} — GS Escala de Trabalho{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex items-start justify-between flex-wrap gap-3">
+        <div>
+            <p class="gs-section-title">Visão Individual</p>
+            <div class="flex items-center gap-3 mt-1 flex-wrap">
+                <h1 class="text-2xl font-bold tracking-wide uppercase">{{ func.nome }}</h1>
+                {% if func.tipo == 'EXTRA' %}
+                    <span class="badge-extra">Extra</span>
+                {% else %}
+                    <span class="text-[0.6rem] border border-brand-border text-brand-grey px-2 py-0.5 rounded uppercase tracking-widest font-bold">Contratado</span>
+                {% endif %}
+                {% if not func.ativo %}
+                    <span class="text-[0.6rem] bg-brand-border text-brand-grey px-2 py-0.5 rounded uppercase tracking-widest font-bold">Inativo</span>
+                {% endif %}
+            </div>
+            <p class="text-brand-grey text-sm mt-1">{{ func.cargo }} &nbsp;·&nbsp; {{ func.setor }}</p>
+        </div>
+
+        <form method="get" class="flex items-center gap-2">
+            <label class="gs-section-title">Mês</label>
+            <input type="month" name="mes" value="{{ mes_str }}"
+                   class="gs-input w-auto" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <!-- Totais -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="gs-card p-4 text-center turno-MANHA rounded-lg">
+            <div class="text-3xl font-black">{{ contagem.MANHA }}</div>
+            <div class="gs-section-title mt-1">Manhãs</div>
+        </div>
+        <div class="gs-card p-4 text-center turno-TARDE rounded-lg">
+            <div class="text-3xl font-black">{{ contagem.TARDE }}</div>
+            <div class="gs-section-title mt-1">Tardes</div>
+        </div>
+        <div class="gs-card p-4 text-center turno-FOLGA rounded-lg">
+            <div class="text-3xl font-black">{{ contagem.FOLGA }}</div>
+            <div class="gs-section-title mt-1">Folgas</div>
+        </div>
+        <div class="gs-card p-4 text-center turno-FERIAS rounded-lg">
+            <div class="text-3xl font-black">{{ contagem.FERIAS }}</div>
+            <div class="gs-section-title mt-1">Férias</div>
+        </div>
+    </div>
+
+    <!-- Calendário -->
+    <div class="gs-card p-4">
+        <p class="gs-section-title mb-3">{{ nome_mes(mes) }} {{ ano }}</p>
+        <div class="grid grid-cols-7 gap-1 text-xs">
+            {% for nome_dia in ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+            <div class="text-center py-1 font-bold text-brand-grey tracking-widest uppercase text-[0.6rem]">{{ nome_dia }}</div>
+            {% endfor %}
+            {% for _ in range(dias[0].weekday()) %}
+            <div></div>
+            {% endfor %}
+            {% for d in dias %}
+            {% set iso = d.isoformat() %}
+            {% set t = escala.get(iso, '') %}
+            {% set nota = notas.get(iso, '') %}
+            <div class="dia-cell border border-brand-border rounded p-2 min-h-[64px] {% if t %}turno-{{ t }}{% else %}bg-white{% endif %} relative group cursor-pointer"
+                 data-func="{{ func.id }}" data-data="{{ iso }}" data-nota="{{ nota | e }}">
+                <div class="flex items-start justify-between">
+                    <div class="font-bold text-xs">{{ d.day }}</div>
+                    <button class="btn-nota opacity-0 group-hover:opacity-100 transition-opacity text-[0.55rem] px-1 rounded leading-none"
+                            title="Adicionar comentário" tabindex="-1">✎</button>
+                </div>
+                <div class="text-[0.6rem] font-bold mt-0.5 tracking-wider">{{ label_turno(t) }}</div>
+                {% if nota %}
+                <div class="nota-preview text-[0.55rem] mt-1 italic opacity-70 leading-tight line-clamp-2">{{ nota }}</div>
+                {% else %}
+                <div class="nota-preview text-[0.55rem] mt-1 italic opacity-70 leading-tight line-clamp-2"></div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <a href="/grade?mes={{ mes_str }}" class="text-sm text-brand-grey hover:text-black transition">← Ver grade completa</a>
+
+</div>
+
+<!-- Modal de comentário -->
+<div id="modal-nota" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 hidden">
+    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <p class="gs-section-title">Comentário</p>
+                <p id="modal-data-label" class="text-sm font-bold mt-0.5"></p>
+            </div>
+            <button id="modal-fechar" class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
+        </div>
+        <textarea id="modal-texto"
+            class="w-full border border-brand-border rounded-lg p-3 text-sm resize-none focus:outline-none focus:border-black font-sans"
+            rows="4" placeholder="Digite um comentário para este dia…"></textarea>
+        <div class="flex gap-2 mt-4">
+            <button id="modal-salvar" class="gs-btn gs-btn-primary flex-1">Salvar</button>
+            <button id="modal-apagar" class="gs-btn gs-btn-danger">Apagar</button>
+        </div>
+        <p id="modal-status" class="text-xs text-center mt-2 text-brand-grey hidden"></p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const modal      = document.getElementById('modal-nota');
+const modalLabel = document.getElementById('modal-data-label');
+const modalTexto = document.getElementById('modal-texto');
+const modalStatus= document.getElementById('modal-status');
+const funcId     = {{ func.id }};
+
+let cellAtual = null;
+
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+function abrirModal(cell) {
+    cellAtual = cell;
+    const iso  = cell.dataset.data;
+    const nota = cell.dataset.nota || "";
+    const [, mes, dia] = iso.split('-');
+    modalLabel.textContent = `${dia} de ${MESES[parseInt(mes) - 1]}`;
+    modalTexto.value = nota;
+    modalStatus.classList.add('hidden');
+    modal.classList.remove('hidden');
+    setTimeout(() => modalTexto.focus(), 50);
+}
+
+function fecharModal() {
+    modal.classList.add('hidden');
+    cellAtual = null;
+}
+
+async function salvarNota(texto) {
+    const fd = new FormData();
+    fd.append('funcionario_id', funcId);
+    fd.append('data', cellAtual.dataset.data);
+    fd.append('texto', texto);
+    try {
+        const resp = await fetch('/api/nota/set', { method: 'POST', body: fd });
+        const json = await resp.json();
+        if (json.ok) {
+            cellAtual.dataset.nota = texto.trim();
+            const preview = cellAtual.querySelector('.nota-preview');
+            if (preview) preview.textContent = texto.trim();
+            return true;
+        }
+    } catch {}
+    return false;
+}
+
+document.querySelectorAll('.dia-cell').forEach(cell => {
+    cell.addEventListener('click', () => abrirModal(cell));
+});
+
+document.getElementById('modal-fechar').addEventListener('click', fecharModal);
+modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') fecharModal();
+    if (e.key === 'Enter' && e.ctrlKey && !modal.classList.contains('hidden')) {
+        document.getElementById('modal-salvar').click();
+    }
+});
+
+document.getElementById('modal-salvar').addEventListener('click', async () => {
+    const texto = modalTexto.value;
+    const ok = await salvarNota(texto);
+    if (ok) {
+        modalStatus.textContent = 'Salvo!';
+        modalStatus.classList.remove('hidden');
+        setTimeout(fecharModal, 700);
+    } else {
+        modalStatus.textContent = 'Erro ao salvar.';
+        modalStatus.classList.remove('hidden');
+    }
+});
+
+document.getElementById('modal-apagar').addEventListener('click', async () => {
+    const ok = await salvarNota('');
+    if (ok) fecharModal();
+});
+</script>
+{% endblock %}
