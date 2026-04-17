@@ -9,9 +9,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copia o código
 COPY . .
 
-# Garante que a pasta do banco existe
-RUN mkdir -p /app/data
+# Guarda o banco inicial numa pasta separada (seed)
+RUN mkdir -p /app/data_seed && \
+    if [ -f /app/data/escala.db ]; then cp /app/data/escala.db /app/data_seed/escala.db; fi
+
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/entrypoint.sh"]
