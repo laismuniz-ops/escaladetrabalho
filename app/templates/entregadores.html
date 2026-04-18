@@ -40,8 +40,11 @@
             <tr>
                 <th class="sticky left-0 top-0 z-30 bg-white text-left px-3 py-2 min-w-[180px] text-brand-grey text-[0.6rem] tracking-widest uppercase font-bold border-b border-brand-border">Entregador</th>
                 {% for d in dias %}
+                {% set iso_entr = d.isoformat() %}
+                {% set is_fer = iso_entr in feriados %}
                 <th class="sticky top-0 z-20 px-1 py-1.5 text-center font-bold border-b border-brand-border
-                    {% if d.weekday() == 6 %}domingo-header{% else %}bg-white text-brand-grey{% endif %}">
+                    {% if is_fer %}feriado-header{% else %}bg-white text-brand-grey{% endif %}">
+                    {% if is_fer %}<div class="text-[0.48rem] text-green-700 leading-tight font-semibold">{{ feriados[iso_entr][:10] }}</div>{% endif %}
                     <div class="text-[0.55rem] tracking-wide leading-none">{{ dia_semana_curto(d) }}</div>
                     <div class="text-[0.7rem] font-black leading-snug">{{ d.day }}</div>
                 </th>
@@ -267,15 +270,33 @@
                 </div>
             </div>
 
-            <!-- Min Rápidos / Normais -->
-            <div></div>
-            <div>
-                <label class="gs-section-title block mb-1">Mín. <span class="entr-nome-rapido">Rápidos</span> / dia</label>
-                <input type="number" id="g-min-r" value="0" min="0" class="gs-input">
+            <!-- Min Rápidos por dia da semana -->
+            <div class="col-span-2">
+                <label class="gs-section-title block mb-2">Mín. <span class="entr-nome-rapido">Rápidos</span> / dia</label>
+                <div class="grid grid-cols-7 gap-1">
+                    {% set dias_nomes2 = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+                    {% for i in range(7) %}
+                    <div class="text-center">
+                        <div class="gs-section-title mb-1 {% if i == 6 %}text-brand-grey{% endif %}">{{ dias_nomes2[i] }}</div>
+                        <input type="number" id="g-min-r-{{ i }}" value="0" min="0"
+                               class="gs-input text-center px-1" style="padding-left:4px;padding-right:4px;">
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            <div>
-                <label class="gs-section-title block mb-1">Mín. <span class="entr-nome-normal">Normais</span> / dia</label>
-                <input type="number" id="g-min-n" value="0" min="0" class="gs-input">
+
+            <!-- Min Normais por dia da semana -->
+            <div class="col-span-2">
+                <label class="gs-section-title block mb-2">Mín. <span class="entr-nome-normal">Normais</span> / dia</label>
+                <div class="grid grid-cols-7 gap-1">
+                    {% for i in range(7) %}
+                    <div class="text-center">
+                        <div class="gs-section-title mb-1 {% if i == 6 %}text-brand-grey{% endif %}">{{ dias_nomes2[i] }}</div>
+                        <input type="number" id="g-min-n-{{ i }}" value="0" min="0"
+                               class="gs-input text-center px-1" style="padding-left:4px;padding-right:4px;">
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
 
             <!-- Calendário de seleção de dias -->
@@ -581,8 +602,8 @@ async function executarGerar() {
         const fd = new FormData();
         fd.append('mes', document.getElementById('g-mes').value);
         for (let i = 0; i < 7; i++) fd.append(`total_${i}`, document.getElementById(`g-total-${i}`).value);
-        fd.append('min_rapido', document.getElementById('g-min-r').value);
-        fd.append('min_normal', document.getElementById('g-min-n').value);
+        for (let i = 0; i < 7; i++) fd.append(`min_rapido_${i}`, document.getElementById(`g-min-r-${i}`).value);
+        for (let i = 0; i < 7; i++) fd.append(`min_normal_${i}`, document.getElementById(`g-min-n-${i}`).value);
         if (document.getElementById('g-sobrescrever').checked) fd.append('sobrescrever', '1');
         dias.forEach(d => fd.append('dias_especificos', d));
 

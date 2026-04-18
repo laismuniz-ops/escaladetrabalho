@@ -400,6 +400,26 @@ def escala_entregadores_mensal(ano: int, mes: int) -> dict[int, dict[str, str]]:
     return resultado
 
 
+# ---------- Feriados ----------
+
+def listar_feriados_ano(ano: int) -> dict:
+    """Retorna {data_iso: nome} dos feriados do ano."""
+    with db_cursor() as cur:
+        cur.execute("SELECT data, nome FROM feriados WHERE data LIKE ?", (f"{ano}-%",))
+        return {row["data"]: row["nome"] for row in cur.fetchall()}
+
+def set_feriado(data_iso: str, nome: str) -> None:
+    with db_cursor() as cur:
+        cur.execute(
+            "INSERT INTO feriados (data, nome) VALUES (?,?) ON CONFLICT(data) DO UPDATE SET nome=excluded.nome",
+            (data_iso, nome.strip()),
+        )
+
+def remover_feriado(data_iso: str) -> None:
+    with db_cursor() as cur:
+        cur.execute("DELETE FROM feriados WHERE data = ?", (data_iso,))
+
+
 # ---------- Geração automática de escala de entregadores ----------
 
 import calendar as _cal
@@ -407,10 +427,10 @@ import calendar as _cal
 def gerar_escala_auto(
     ano: int,
     mes: int,
-    total_por_dia_semana: list,  # lista de 7 ints [seg, ter, qua, qui, sex, sab, dom]
-    min_rapido: int,
-    min_normal: int,
-    dias_especificos: list = None,  # lista de strings ISO; None = mês inteiro
+    total_por_dia_semana: list,       # 7 ints [dom, seg, ter, qua, qui, sex, sab] → índice = weekday() com dom=6
+    min_rapido_semana: list,           # 7 ints, mesmo índice
+    min_normal_semana: list,           # 7 ints, mesmo índice
+    dias_especificos: list = None,
     sobrescrever: bool = False,
 ) -> dict:
     """
@@ -431,12 +451,10 @@ def gerar_escala_auto(
     normais  = [d for d in drivers if d["cor"] == "NORMAL"]
 
     avisos = []
-    _min_r = min(min_rapido, len(rapidos))
-    _min_n = min(min_normal, len(normais))
-    if _min_r < min_rapido:
-        avisos.append(f"Apenas {len(rapidos)} Rápido(s) disponível(is); usando todos.")
-    if _min_n < min_normal:
-        avisos.append(f"Apenas {len(normais)} Normal(is) disponível(is); usando todos.")
+    if max(min_rapido_semana) > len(rapidos):
+        avisos.append(f"Apenas {len(rapidos)} Rápido(s) disponível(is).")
+    if max(min_normal_semana) > len(normais):
+        avisos.append(f"Apenas {len(normais)} Normal(is) disponível(is).")
 
     # Dias a trabalhar
     if dias_especificos:
@@ -462,11 +480,15 @@ def gerar_escala_auto(
         if not sobrescrever and iso in dias_existentes:
             continue
 
-        # Semana Seg–Sáb: domingo tem chave única → não conta para o limite
-        if dia.weekday() == 6:
-            cal_week = ("dom", dia.isoformat())
-        else:
-            cal_week = dia.isocalendar()[:2]  # (year, iso_week)  — Seg a Sáb
+        # Semana Dom–Sáb: domingo é o 1º dia; chave = data do domingo que inicia a semana
+        from datetime import timedelta as _td
+        dias_desde_dom = (dia.weekday() + 1) % 7   # dom=0, seg=1, …, sab=6
+        semana_inicio = dia - _td(days=dias_desde_dom)
+        cal_week = semana_inicio.isoformat()
+
+        dow = dia.weekday()
+        _min_r_hoje = min(min_rapido_semana[dow], len(rapidos))
+        _min_n_hoje = min(min_normal_semana[dow], len(normais))
 
         def elegivel(d):
             return semanas[d["id"]].get(cal_week, 0) < 2
@@ -479,12 +501,12 @@ def gerar_escala_auto(
 
         # 1. Rápidos com menos dias primeiro
         r_sorted = sorted(elig_rapidos, key=lambda d: (contagem[d["id"]], d["ordem"]))
-        for d in r_sorted[:_min_r]:
+        for d in r_sorted[:_min_r_hoje]:
             selecionados.add(d["id"])
 
         # 2. Normais com menos dias primeiro
         n_sorted = sorted(elig_normais, key=lambda d: (contagem[d["id"]], d["ordem"]))
-        for d in n_sorted[:_min_n]:
+        for d in n_sorted[:_min_n_hoje]:
             selecionados.add(d["id"])
 
         # 3. Preenche restante com qualquer elegível

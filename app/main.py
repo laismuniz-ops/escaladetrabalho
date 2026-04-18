@@ -220,12 +220,13 @@ def grade(request: Request, mes: Optional[str] = None, tipo: Optional[str] = Non
                         })
         if alertas:
             dias_alerta[iso] = alertas
+    feriados = models.listar_feriados_ano(ano)
     return templates.TemplateResponse(
         "grade.html",
         _ctx(request, ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}",
              tipo_filtro=tipo or "", dias=dias, por_setor=por_setor,
              setores=setores_ordenados, escalas=escalas,
-             minimos=minimos, dias_alerta=dias_alerta),
+             minimos=minimos, dias_alerta=dias_alerta, feriados=feriados),
     )
 
 
@@ -499,10 +500,11 @@ def entregadores_page(request: Request, mes: Optional[str] = None) -> HTMLRespon
     lista = models.listar_entregadores(ativos_apenas=False)
     escalas = models.escala_entregadores_mensal(ano, mes_num)
     dias = utils.dias_do_mes(ano, mes_num)
+    feriados = models.listar_feriados_ano(ano)
     return templates.TemplateResponse(
         "entregadores.html",
         _ctx(request, lista=lista, escalas=escalas, dias=dias,
-             ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}"),
+             ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}", feriados=feriados),
     )
 
 @app.post("/api/entregadores")
@@ -598,12 +600,12 @@ async def api_gerar_escala_entregadores(request: Request) -> dict:
     ano, mes_num = _parse_mes(mes_str if mes_str else None)
     # 7 valores, um por dia da semana (0=Seg … 6=Dom)
     totais = [int(form.get(f"total_{i}", 4)) for i in range(7)]
-    min_r      = int(form.get("min_rapido", 0))
-    min_n      = int(form.get("min_normal", 0))
+    min_r_list = [int(form.get(f"min_rapido_{i}", 0)) for i in range(7)]
+    min_n_list = [int(form.get(f"min_normal_{i}", 0)) for i in range(7)]
     sobrescrever = form.get("sobrescrever", "") == "1"
     dias_raw       = form.getlist("dias_especificos")
     dias_especificos = dias_raw if dias_raw else None
-    resultado  = models.gerar_escala_auto(ano, mes_num, totais, min_r, min_n, dias_especificos, sobrescrever)
+    resultado  = models.gerar_escala_auto(ano, mes_num, totais, min_r_list, min_n_list, dias_especificos, sobrescrever)
     return resultado
 
 

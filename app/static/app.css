@@ -209,3 +209,6 @@ input[type="checkbox"].gs-check {
 /* Cor de velocidade no nome do entregador */
 .entr-nome-rapido { color: #3b82f6 !important; }
 .entr-nome-normal { color: #ef4444 !important; }
+
+/* Feriados na grade */
+.feriado-header { background: #dcfce7 !important; color: #14532d !important; }

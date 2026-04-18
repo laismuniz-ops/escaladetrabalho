@@ -90,18 +90,20 @@
                 {% for d in dias %}
                 {% set iso_d = d.isoformat() %}
                 {% set tem_alerta = iso_d in dias_alerta %}
+                {% set is_feriado = iso_d in feriados %}
                 <th class="sticky top-0 z-20 px-1 py-1.5 text-center font-bold border-b border-brand-border
-                    {% if d.weekday() == 6 %}domingo-header{% else %}bg-white text-brand-grey{% endif %}
-                    {% if tem_alerta and d.weekday() != 6 %}th-alerta{% endif %}"
-                    {% if tem_alerta and d.weekday() != 6 %}
+                    {% if is_feriado %}feriado-header{% elif d.weekday() == 6 %}domingo-header{% else %}bg-white text-brand-grey{% endif %}
+                    {% if tem_alerta and d.weekday() != 6 and not is_feriado %}th-alerta{% endif %}"
+                    {% if tem_alerta and d.weekday() != 6 and not is_feriado %}
                     data-alertas='{{ dias_alerta[iso_d] | tojson }}'
                     {% endif %}>
                     <div class="text-[0.55rem] tracking-wide leading-none">{{ dia_semana_curto(d) }}</div>
                     <div class="text-[0.7rem] font-black leading-snug
-                        {% if d.weekday() != 6 %}{% if tem_alerta %}text-red-600{% else %}text-black{% endif %}{% endif %}">
+                        {% if d.weekday() != 6 and not is_feriado %}{% if tem_alerta %}text-red-600{% else %}text-black{% endif %}{% endif %}">
                         {{ d.day }}
                     </div>
-                    {% if tem_alerta and d.weekday() != 6 %}
+                    {% if is_feriado %}<div class="text-[0.48rem] text-green-700 leading-tight font-semibold truncate px-0.5">{{ feriados[iso_d][:10] }}</div>{% endif %}
+                    {% if tem_alerta and d.weekday() != 6 and not is_feriado %}
                     <div class="w-full h-0.5 bg-red-500 rounded mt-0.5"></div>
                     {% endif %}
                 </th>

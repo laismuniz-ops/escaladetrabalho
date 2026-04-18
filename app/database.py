@@ -256,6 +256,43 @@ def init_db() -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_esc_entr_id ON escala_entregadores(entregador_id);")
         _migrate_entregadores_if_needed(cur)
         _seed_entregadores_if_empty(cur)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS feriados (
+                data TEXT PRIMARY KEY,
+                nome TEXT NOT NULL
+            );
+        """)
+        _seed_feriados_if_empty(cur)
+
+
+_FERIADOS_BRASIL = [
+    # 2025
+    ("2025-01-01","Ano Novo"),("2025-04-18","Sexta-feira Santa"),
+    ("2025-04-20","Páscoa"),("2025-04-21","Tiradentes"),
+    ("2025-05-01","Dia do Trabalhador"),("2025-06-19","Corpus Christi"),
+    ("2025-09-07","Independência do Brasil"),("2025-10-12","Nossa Senhora Aparecida"),
+    ("2025-11-02","Finados"),("2025-11-15","Proclamação da República"),
+    ("2025-11-20","Consciência Negra"),("2025-12-25","Natal"),
+    # 2026
+    ("2026-01-01","Ano Novo"),("2026-04-03","Sexta-feira Santa"),
+    ("2026-04-05","Páscoa"),("2026-04-21","Tiradentes"),
+    ("2026-05-01","Dia do Trabalhador"),("2026-06-04","Corpus Christi"),
+    ("2026-09-07","Independência do Brasil"),("2026-10-12","Nossa Senhora Aparecida"),
+    ("2026-11-02","Finados"),("2026-11-15","Proclamação da República"),
+    ("2026-11-20","Consciência Negra"),("2026-12-25","Natal"),
+    # 2027
+    ("2027-01-01","Ano Novo"),("2027-03-26","Sexta-feira Santa"),
+    ("2027-03-28","Páscoa"),("2027-04-21","Tiradentes"),
+    ("2027-05-01","Dia do Trabalhador"),("2027-06-17","Corpus Christi"),
+    ("2027-09-07","Independência do Brasil"),("2027-10-12","Nossa Senhora Aparecida"),
+    ("2027-11-02","Finados"),("2027-11-15","Proclamação da República"),
+    ("2027-11-20","Consciência Negra"),("2027-12-25","Natal"),
+]
+
+def _seed_feriados_if_empty(cur) -> None:
+    cur.execute("SELECT COUNT(*) FROM feriados")
+    if cur.fetchone()[0] == 0:
+        cur.executemany("INSERT OR IGNORE INTO feriados (data, nome) VALUES (?,?)", _FERIADOS_BRASIL)
 
 
 # ---------- Backup ----------
