@@ -299,22 +299,42 @@ def listar_entregadores(ativos_apenas: bool = True) -> list[dict]:
         cur.execute(sql)
         return [dict(r) for r in cur.fetchall()]
 
-def criar_entregador(nome: str, ordem: int = 0) -> int:
+def criar_entregador(nome: str, obs: str = "", cor: str = "", ordem: int = 0) -> int:
     with db_cursor() as cur:
-        cur.execute("INSERT INTO entregadores (nome, ordem) VALUES (?, ?)", (nome.strip(), ordem))
+        cur.execute(
+            "INSERT INTO entregadores (nome, obs, cor, ordem) VALUES (?, ?, ?, ?)",
+            (nome.strip(), obs.strip(), cor.strip(), ordem),
+        )
         return cur.lastrowid
 
-def atualizar_entregador(eid: int, nome: str = None, ativo: bool = None) -> None:
+def atualizar_entregador(eid: int, nome: str = None, ativo: bool = None,
+                          obs: str = None, cor: str = None) -> None:
     campos, valores = [], []
     if nome is not None:
         campos.append("nome = ?"); valores.append(nome.strip())
     if ativo is not None:
         campos.append("ativo = ?"); valores.append(1 if ativo else 0)
+    if obs is not None:
+        campos.append("obs = ?"); valores.append(obs.strip())
+    if cor is not None:
+        campos.append("cor = ?"); valores.append(cor.strip())
     if not campos:
         return
     valores.append(eid)
     with db_cursor() as cur:
         cur.execute(f"UPDATE entregadores SET {', '.join(campos)} WHERE id = ?", valores)
+
+def set_obs_entregador(eid: int, texto: str) -> None:
+    with db_cursor() as cur:
+        cur.execute("UPDATE entregadores SET obs = ? WHERE id = ?", (texto.strip(), eid))
+
+def set_cor_entregador(eid: int, cor: str) -> None:
+    """cor: 'RAPIDO', 'DEVAGAR' ou '' para limpar."""
+    validos = {"RAPIDO", "DEVAGAR", ""}
+    if cor not in validos:
+        raise ValueError(f"Cor inválida: {cor}")
+    with db_cursor() as cur:
+        cur.execute("UPDATE entregadores SET cor = ? WHERE id = ?", (cor, eid))
 
 def remover_entregador(eid: int) -> None:
     with db_cursor() as cur:

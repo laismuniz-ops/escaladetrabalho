@@ -545,6 +545,24 @@ def api_set_status_entregador(
     models.set_status_entregador(entregador_id, data, status or None)
     return {"ok": True}
 
+@app.post("/api/entregadores/{eid}/obs")
+async def api_set_obs_entregador(request: Request, eid: int) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    texto = str(form.get("texto", ""))
+    models.set_obs_entregador(eid, texto)
+    return {"ok": True}
+
+@app.post("/api/entregadores/{eid}/cor")
+async def api_set_cor_entregador(request: Request, eid: int) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    cor = str(form.get("cor", ""))
+    models.set_cor_entregador(eid, cor)
+    return {"ok": True, "cor": cor}
+
 
 # ---------- PDF ----------
 

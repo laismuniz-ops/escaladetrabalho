@@ -48,6 +48,26 @@ def db_cursor():
         conn.close()
 
 
+def _migrate_entregadores_if_needed(cur) -> None:
+    """Adiciona colunas obs e cor à tabela entregadores e reordena alfabeticamente."""
+    cur.execute("PRAGMA table_info(entregadores)")
+    cols = [r["name"] for r in cur.fetchall()]
+    if not cols:
+        return  # tabela ainda não existe
+    reordenar = False
+    if "obs" not in cols:
+        cur.execute("ALTER TABLE entregadores ADD COLUMN obs TEXT NOT NULL DEFAULT ''")
+        reordenar = True
+    if "cor" not in cols:
+        cur.execute("ALTER TABLE entregadores ADD COLUMN cor TEXT NOT NULL DEFAULT ''")
+    if reordenar:
+        # Na primeira migração, reordena alfabeticamente
+        cur.execute("SELECT id FROM entregadores ORDER BY LOWER(nome)")
+        rows = cur.fetchall()
+        for i, row in enumerate(rows):
+            cur.execute("UPDATE entregadores SET ordem = ? WHERE id = ?", (i * 10, row["id"]))
+
+
 def _migrate_minimos_if_needed(cur) -> None:
     """Adiciona coluna dia_semana em minimos_escala se não existir."""
     cur.execute("PRAGMA table_info(minimos_escala)")
@@ -208,6 +228,7 @@ def init_db() -> None:
         )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_esc_entr_data ON escala_entregadores(data);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_esc_entr_id ON escala_entregadores(entregador_id);")
+        _migrate_entregadores_if_needed(cur)
 
 
 # ---------- Backup ----------
