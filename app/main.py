@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import models, utils, auth
-from .database import init_db
+from .database import init_db, fazer_backup, listar_backups, restaurar_backup
 from .pdf_export import gerar_pdf_escala
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -275,19 +275,69 @@ def cadastros(request: Request) -> HTMLResponse:
     )
 
 
-# ---------- Gerenciar usuários (admin) ----------
+# ---------- Administração (admin) ----------
 
-@app.get("/usuarios", response_class=HTMLResponse)
-def usuarios_page(request: Request) -> HTMLResponse:
+@app.get("/admin", response_class=HTMLResponse)
+def admin_home(request: Request) -> HTMLResponse:
+    return RedirectResponse(url="/admin/usuarios", status_code=302)
+
+
+@app.get("/admin/usuarios", response_class=HTMLResponse)
+def admin_usuarios(request: Request) -> HTMLResponse:
     if redir := auth.verificar_permissao(request, "usuarios"):
         return redir
     lista = auth.listar_usuarios()
     erro = request.session.pop("usuario_erro", None)
     ok = request.session.pop("usuario_ok", None)
     return templates.TemplateResponse(
-        "usuarios.html",
-        _ctx(request, lista=lista, erro=erro, ok=ok),
+        "admin.html",
+        _ctx(request, tab="usuarios", lista=lista, erro=erro, ok=ok),
     )
+
+
+@app.get("/admin/backups", response_class=HTMLResponse)
+def admin_backups(request: Request) -> HTMLResponse:
+    if redir := auth.verificar_permissao(request, "usuarios"):
+        return redir
+    backups = listar_backups()
+    ok = request.session.pop("backup_ok", None)
+    erro = request.session.pop("backup_erro", None)
+    return templates.TemplateResponse(
+        "admin.html",
+        _ctx(request, tab="backups", backups=backups, ok=ok, erro=erro),
+    )
+
+
+@app.post("/api/admin/backup")
+def api_fazer_backup(request: Request) -> RedirectResponse:
+    if redir := auth.verificar_permissao(request, "usuarios"):
+        return redir
+    try:
+        nome = fazer_backup()
+        request.session["backup_ok"] = f"Backup criado: {nome}"
+    except Exception as e:
+        request.session["backup_erro"] = f"Erro ao criar backup: {e}"
+    return RedirectResponse(url="/admin/backups", status_code=303)
+
+
+@app.post("/api/admin/restaurar")
+async def api_restaurar_backup(request: Request) -> RedirectResponse:
+    if redir := auth.verificar_permissao(request, "usuarios"):
+        return redir
+    form = await request.form()
+    nome = str(form.get("nome", ""))
+    try:
+        restaurar_backup(nome)
+        request.session["backup_ok"] = f"Banco restaurado para: {nome}"
+    except Exception as e:
+        request.session["backup_erro"] = f"Erro ao restaurar: {e}"
+    return RedirectResponse(url="/admin/backups", status_code=303)
+
+
+# Redireciona /usuarios para o novo endereço
+@app.get("/usuarios", response_class=HTMLResponse)
+def usuarios_redirect(request: Request) -> HTMLResponse:
+    return RedirectResponse(url="/admin/usuarios", status_code=302)
 
 
 @app.post("/api/usuarios")
