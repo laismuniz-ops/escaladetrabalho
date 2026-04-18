@@ -530,9 +530,9 @@ async function setCor(id, cor, btn) {
 const _listaEntr    = {{ lista | tojson }};
 const _minEntrLista = {{ min_entr_lista | tojson }};
 
-// Sincroniza totais salvos no localStorage → servidor (mantém mínimos do BD atualizados)
+// Sincroniza totais do localStorage → servidor ao carregar a página (se já houver valores salvos)
 (function () {
-    if (localStorage.getItem('gs_entr_total_0') === null) return; // nunca salvou
+    if (localStorage.getItem('gs_entr_total_0') === null) return;
     const fd = new FormData();
     for (let i = 0; i < 7; i++) {
         fd.append('min_' + i, localStorage.getItem('gs_entr_total_' + i) || 0);
@@ -610,11 +610,12 @@ function salvarConfigGeracao(mostrarFeedback = false) {
 }
 function carregarConfigGeracao() {
     for (let i = 0; i < 7; i++) {
+        const el    = document.getElementById(`g-total-${i}`);
         const total = localStorage.getItem(`gs_entr_total_${i}`);
         const minR  = localStorage.getItem(`gs_entr_min_r_${i}`);
         const minN  = localStorage.getItem(`gs_entr_min_n_${i}`);
-        // Usa localStorage se disponível, senão usa valor salvo no servidor (totais = mínimos)
-        document.getElementById(`g-total-${i}`).value = total !== null ? total : (_minEntrLista[i] || 0);
+        // localStorage > servidor > padrão HTML (ex: 4)
+        el.value = total !== null ? total : (_minEntrLista[i] || el.defaultValue);
         if (minR !== null) document.getElementById(`g-min-r-${i}`).value = minR;
         if (minN !== null) document.getElementById(`g-min-n-${i}`).value = minN;
     }
@@ -633,6 +634,7 @@ function abrirModalGerar() {
         `${outros} sem classificação &nbsp;·&nbsp; ` +
         `<strong>${_listaEntr.filter(e=>e.ativo).length}</strong> ativos`;
     carregarConfigGeracao();
+    salvarConfigGeracao(false); // sincroniza valores atuais (inclusive padrões) com o servidor
     renderCalendario();
 }
 function fecharModalGerar() { document.getElementById('modal-gerar').classList.add('hidden'); }
