@@ -329,8 +329,8 @@ def set_obs_entregador(eid: int, texto: str) -> None:
         cur.execute("UPDATE entregadores SET obs = ? WHERE id = ?", (texto.strip(), eid))
 
 def set_cor_entregador(eid: int, cor: str) -> None:
-    """cor: 'RAPIDO', 'DEVAGAR' ou '' para limpar."""
-    validos = {"RAPIDO", "DEVAGAR", ""}
+    """cor: 'RAPIDO', 'NORMAL' ou '' para limpar."""
+    validos = {"RAPIDO", "NORMAL", ""}
     if cor not in validos:
         raise ValueError(f"Cor inválida: {cor}")
     with db_cursor() as cur:

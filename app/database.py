@@ -87,6 +87,8 @@ def _migrate_entregadores_if_needed(cur) -> None:
         rows = cur.fetchall()
         for i, row in enumerate(rows):
             cur.execute("UPDATE entregadores SET ordem = ? WHERE id = ?", (i * 10, row["id"]))
+    # Renomeia DEVAGAR → NORMAL (migração de nomenclatura)
+    cur.execute("UPDATE entregadores SET cor = 'NORMAL' WHERE cor = 'DEVAGAR'")
 
 
 def _migrate_minimos_if_needed(cur) -> None:

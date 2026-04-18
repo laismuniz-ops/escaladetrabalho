@@ -18,11 +18,11 @@
     </div>
 
     <!-- Legenda -->
-    <div class="flex items-center gap-4 flex-wrap text-xs font-bold">
-        <span class="entr-ESCALADO px-3 py-1 rounded">E — Escalado</span>
-        <span class="entr-CONFIRMADO px-3 py-1 rounded">C — Confirmado</span>
-        <span style="color:#3b82f6;" class="font-bold">● Rápido</span>
-        <span class="font-bold text-gray-500">● Devagar</span>
+    <div class="flex items-center gap-3 flex-wrap">
+        <span class="entr-ESCALADO px-3 py-1 rounded font-bold text-xs">E — Escalado</span>
+        <span class="entr-CONFIRMADO px-3 py-1 rounded font-bold text-xs">C — Confirmado</span>
+        <span class="entr-nome-rapido font-bold text-xs">● Rápido</span>
+        <span class="entr-nome-normal font-bold text-xs">● Normal</span>
     </div>
 
     <!-- Grade -->
@@ -45,7 +45,7 @@
             {% set turnos = escalas.get(e.id, {}) %}
             <tr class="border-b border-brand-border {% if not e.ativo %}opacity-40{% endif %}">
                 <td class="sticky left-0 z-10 bg-white px-3 py-2 font-semibold border-r border-brand-border
-                    {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% endif %}">
+                    {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}">
                     {{ e.nome }}
                     {% if e.obs %}<span class="text-[0.58rem] text-brand-grey font-normal block leading-tight">{{ e.obs }}</span>{% endif %}
                     {% if not e.ativo %}<span class="text-[0.6rem] text-brand-grey ml-1 font-normal">(inativo)</span>{% endif %}
@@ -94,7 +94,7 @@
             {% for e in lista %}
             <tr class="{% if not e.ativo %}opacity-50{% endif %}">
                 <!-- Nome com cor -->
-                <td class="font-semibold {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% endif %}">
+                <td class="font-semibold {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}">
                     {{ e.nome }}
                 </td>
 
@@ -114,19 +114,13 @@
                     <div class="flex gap-1 items-center">
                         <button onclick="setCor({{ e.id }}, '', this)"
                                 class="cor-btn {% if not e.cor %}cor-ativo{% endif %}"
-                                title="Sem cor" data-id="{{ e.id }}">
-                            ●
-                        </button>
+                                title="Sem cor">●</button>
                         <button onclick="setCor({{ e.id }}, 'RAPIDO', this)"
                                 class="cor-btn cor-rapido {% if e.cor == 'RAPIDO' %}cor-ativo{% endif %}"
-                                title="Rápido" data-id="{{ e.id }}">
-                            ●
-                        </button>
-                        <button onclick="setCor({{ e.id }}, 'DEVAGAR', this)"
-                                class="cor-btn cor-devagar {% if e.cor == 'DEVAGAR' %}cor-ativo{% endif %}"
-                                title="Devagar" data-id="{{ e.id }}">
-                            ●
-                        </button>
+                                title="Rápido">●</button>
+                        <button onclick="setCor({{ e.id }}, 'NORMAL', this)"
+                                class="cor-btn cor-normal {% if e.cor == 'NORMAL' %}cor-ativo{% endif %}"
+                                title="Normal">●</button>
                     </div>
                 </td>
 
@@ -176,14 +170,14 @@
 <div id="entr-menu" style="
     display:none; position:fixed; z-index:1000;
     background:#fff; border:1px solid #e5e5e3; border-radius:10px;
-    box-shadow:0 8px 24px rgba(0,0,0,0.15); padding:6px; min-width:150px;">
+    box-shadow:0 8px 24px rgba(0,0,0,0.15); padding:6px; min-width:155px;">
     <div style="font-size:0.55rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#80807b;padding:4px 8px 5px;">
         Status
     </div>
-    <button data-status="ESCALADO" style="display:block;width:100%;text-align:left;padding:7px 10px;margin:2px 0;border-radius:6px;font-size:0.8rem;font-weight:900;cursor:pointer;background:#fffbeb;color:#d97706;border:1px solid #fcd34d;">
+    <button data-status="ESCALADO" style="display:block;width:100%;text-align:left;padding:7px 10px;margin:2px 0;border-radius:6px;font-size:0.75rem;font-weight:800;cursor:pointer;background:#fef3c7;color:#78350f;border:1px solid #fcd34d;">
         E — Escalado
     </button>
-    <button data-status="CONFIRMADO" style="display:block;width:100%;text-align:left;padding:7px 10px;margin:2px 0;border-radius:6px;font-size:0.8rem;font-weight:900;cursor:pointer;background:#f0fdf4;color:#16a34a;border:1px solid #86efac;">
+    <button data-status="CONFIRMADO" style="display:block;width:100%;text-align:left;padding:7px 10px;margin:2px 0;border-radius:6px;font-size:0.75rem;font-weight:800;cursor:pointer;background:#dcfce7;color:#14532d;border:1px solid #86efac;">
         C — Confirmado
     </button>
     <div style="border-top:1px solid #e5e5e3;margin:4px 2px;"></div>
@@ -194,13 +188,13 @@
 
 <style>
 .cor-btn {
-    font-size: 1rem;
+    font-size: 1.1rem;
     line-height: 1;
     background: none;
     border: 2px solid transparent;
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -212,7 +206,7 @@
 .cor-btn:hover { transform: scale(1.2); }
 .cor-btn.cor-ativo { border-color: #374151; }
 .cor-btn.cor-rapido  { color: #3b82f6; }
-.cor-btn.cor-devagar { color: #ef4444; }
+.cor-btn.cor-normal  { color: #ef4444; }
 </style>
 
 <script>
@@ -225,7 +219,7 @@ function abrirMenu(cell) {
     let top = rect.bottom + 4;
     if (top + 170 > window.innerHeight) top = rect.top - 174;
     let left = rect.left;
-    if (left + 160 > window.innerWidth) left = window.innerWidth - 163;
+    if (left + 165 > window.innerWidth) left = window.innerWidth - 168;
     menu.style.top = top + 'px';
     menu.style.left = left + 'px';
     menu.style.display = 'block';
@@ -293,14 +287,13 @@ async function setCor(id, cor, btn) {
     fd.append('cor', cor);
     const r = await fetch(`/api/entregadores/${id}/cor`, { method: 'POST', body: fd });
     if (r.ok) {
-        // Atualiza botões visuais da linha
         const row = btn.closest('tr');
         row.querySelectorAll('.cor-btn').forEach(b => b.classList.remove('cor-ativo'));
         btn.classList.add('cor-ativo');
-        // Atualiza cor do nome na linha
         const nomeCell = row.querySelector('td:first-child');
-        nomeCell.classList.remove('entr-nome-rapido');
+        nomeCell.classList.remove('entr-nome-rapido', 'entr-nome-normal');
         if (cor === 'RAPIDO') nomeCell.classList.add('entr-nome-rapido');
+        else if (cor === 'NORMAL') nomeCell.classList.add('entr-nome-normal');
     }
 }
 </script>

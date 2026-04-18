@@ -201,11 +201,11 @@ input[type="checkbox"].gs-check {
   z-index: 2;
   position: relative;
 }
-/* E = amarelo vivo / C = verde vivo */
-.entr-ESCALADO   { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
-.entr-CONFIRMADO { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
+/* Células igual às de colaboradores: fundo sólido amarelo / verde */
+.entr-ESCALADO   { background: #fef3c7; color: #78350f; border: 1px solid #fcd34d; }
+.entr-CONFIRMADO { background: #dcfce7; color: #14532d; border: 1px solid #86efac; }
 .entr-vazio      { background: #fafafa; color: #d4d4d4; }
 
 /* Cor de velocidade no nome do entregador */
-.entr-nome-rapido  { color: #3b82f6 !important; }
-/* devagar = texto normal (sem cor especial) */
+.entr-nome-rapido { color: #3b82f6 !important; }
+.entr-nome-normal { color: #ef4444 !important; }
