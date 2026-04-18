@@ -9,13 +9,12 @@
             <p class="gs-section-title">Escala de</p>
             <h1 class="text-2xl font-bold tracking-wide uppercase mt-1">Entregadores — {{ nome_mes(mes) }} / {{ ano }}</h1>
         </div>
-        <!-- substituir o bloco de botões -->
         <div class="flex items-center gap-3 flex-wrap">
             <form method="get" class="flex items-center gap-2">
                 <label class="gs-section-title">Mês</label>
                 <input type="month" name="mes" value="{{ mes_str }}" class="gs-input w-auto" onchange="this.form.submit()">
             </form>
-            <button type="button" onclick="document.getElementById('modal-gerar').classList.remove('hidden')"
+            <button type="button" onclick="abrirModalGerar()"
                     class="gs-btn gs-btn-primary whitespace-nowrap">
                 ⚡ Gerar automático
             </button>
@@ -89,6 +88,7 @@
             <thead>
                 <tr>
                     <th>Nome</th>
+                    <th>Telefone</th>
                     <th>Observação</th>
                     <th>Velocidade</th>
                     <th>Status</th>
@@ -103,14 +103,23 @@
                     {{ e.nome }}
                 </td>
 
+                <!-- Telefone inline -->
+                <td style="min-width:130px">
+                    <input type="tel"
+                           class="gs-input text-xs py-1"
+                           style="font-size:0.78rem;"
+                           value="{{ e.telefone or '' }}"
+                           placeholder="(00) 00000-0000"
+                           onblur="salvarTelefone({{ e.id }}, this.value)">
+                </td>
+
                 <!-- Obs inline -->
-                <td style="min-width:160px">
+                <td style="min-width:150px">
                     <input type="text"
                            class="gs-input text-xs py-1"
                            style="font-size:0.78rem;"
                            value="{{ e.obs or '' }}"
-                           placeholder="Adicionar obs..."
-                           data-id="{{ e.id }}"
+                           placeholder="Observação..."
                            onblur="salvarObs({{ e.id }}, this.value)">
                 </td>
 
@@ -168,23 +177,21 @@
     </div>
 
     <!-- Modal Gerar Escala Automática -->
-    <div id="modal-gerar" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-5">
+    <div id="modal-gerar" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg my-6 p-6 space-y-4">
 
         <div class="flex items-center justify-between">
             <h2 class="text-base font-bold uppercase tracking-wide">⚡ Gerar Escala Automática</h2>
-            <button onclick="document.getElementById('modal-gerar').classList.add('hidden')"
-                    class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
+            <button onclick="fecharModalGerar()" class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
         </div>
 
-        <!-- Info de classificação -->
-        <div id="info-classif" class="text-xs text-brand-grey"></div>
+        <div id="info-classif" class="text-xs text-brand-grey bg-brand-surface rounded px-3 py-2"></div>
 
         <div class="grid grid-cols-2 gap-4">
             <!-- Mês -->
             <div class="col-span-2">
                 <label class="gs-section-title block mb-1">Mês</label>
-                <input type="month" id="g-mes" value="{{ mes_str }}" class="gs-input">
+                <input type="month" id="g-mes" value="{{ mes_str }}" class="gs-input" onchange="renderCalendario()">
             </div>
 
             <!-- Total por dia -->
@@ -193,35 +200,33 @@
                 <input type="number" id="g-total" value="4" min="1" class="gs-input">
             </div>
 
-            <!-- Dias da semana -->
-            <div class="col-span-2">
-                <label class="gs-section-title block mb-2">Dias da semana</label>
-                <div class="flex gap-2 flex-wrap">
-                    {% set dias_nomes = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
-                    {% for i in range(7) %}
-                    <label class="flex items-center gap-1 text-xs font-semibold cursor-pointer">
-                        <input type="checkbox" class="g-dia-check gs-check" value="{{ i }}" checked>
-                        {{ dias_nomes[i] }}
-                    </label>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Min Rápidos -->
+            <!-- Min Rápidos / Normais -->
+            <div></div>
             <div>
                 <label class="gs-section-title block mb-1">Mín. <span class="entr-nome-rapido">Rápidos</span> / dia</label>
                 <input type="number" id="g-min-r" value="0" min="0" class="gs-input">
             </div>
-
-            <!-- Min Normais -->
             <div>
                 <label class="gs-section-title block mb-1">Mín. <span class="entr-nome-normal">Normais</span> / dia</label>
                 <input type="number" id="g-min-n" value="0" min="0" class="gs-input">
             </div>
 
+            <!-- Calendário de seleção de dias -->
+            <div class="col-span-2">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="gs-section-title">Dias a escalar</label>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="selecionarTodos()" class="text-xs font-bold underline text-brand-grey hover:text-black">Mês inteiro</button>
+                        <button type="button" onclick="limparTodos()" class="text-xs font-bold underline text-brand-grey hover:text-black">Limpar</button>
+                    </div>
+                </div>
+                <div id="g-calendario" class="select-none"></div>
+                <p id="g-dias-selecionados" class="text-xs text-brand-grey mt-1"></p>
+            </div>
+
             <!-- Sobrescrever -->
-            <div class="col-span-2 flex items-center gap-2">
-                <input type="checkbox" id="g-sobrescrever" class="gs-check" value="1">
+            <div class="col-span-2 flex items-center gap-2 pt-1">
+                <input type="checkbox" id="g-sobrescrever" class="gs-check">
                 <label for="g-sobrescrever" class="text-xs font-semibold cursor-pointer">
                     Sobrescrever escala já existente no mês
                 </label>
@@ -233,6 +238,7 @@
             <div class="border-t border-brand-border pt-4 space-y-3">
                 <p id="g-resumo" class="text-sm font-bold"></p>
                 <div id="g-avisos" class="hidden gs-alert-erro text-xs"></div>
+                <p class="text-xs text-brand-grey">Regra aplicada: máx. 2 dias/semana por entregador</p>
                 <table class="gs-table text-xs">
                     <thead><tr><th>Entregador</th><th>Tipo</th><th>Obs</th><th class="text-right">Dias</th></tr></thead>
                     <tbody id="g-tabela"></tbody>
@@ -241,10 +247,8 @@
         </div>
 
         <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
-            <button onclick="document.getElementById('modal-gerar').classList.add('hidden')"
-                    class="gs-btn gs-btn-ghost">Fechar</button>
-            <button onclick="executarGerar()" id="btn-gerar"
-                    class="gs-btn gs-btn-primary">⚡ Gerar</button>
+            <button onclick="fecharModalGerar()" class="gs-btn gs-btn-ghost">Fechar</button>
+            <button onclick="executarGerar()" id="btn-gerar" class="gs-btn gs-btn-primary">⚡ Gerar</button>
         </div>
     </div>
     </div>
@@ -275,25 +279,31 @@
 
 <style>
 .cor-btn {
-    font-size: 1.1rem;
-    line-height: 1;
-    background: none;
-    border: 2px solid transparent;
-    border-radius: 50%;
-    width: 26px;
-    height: 26px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #d4d4d4;
-    transition: border-color 0.15s, transform 0.1s;
-    padding: 0;
+    font-size: 1.1rem; line-height: 1; background: none;
+    border: 2px solid transparent; border-radius: 50%;
+    width: 26px; height: 26px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #d4d4d4; transition: border-color 0.15s, transform 0.1s; padding: 0;
 }
 .cor-btn:hover { transform: scale(1.2); }
 .cor-btn.cor-ativo { border-color: #374151; }
 .cor-btn.cor-rapido  { color: #3b82f6; }
 .cor-btn.cor-normal  { color: #ef4444; }
+
+/* Calendário do modal */
+#g-calendario { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+.gcal-hdr { text-align:center; font-size:0.58rem; font-weight:700; color:#80807b;
+            letter-spacing:0.08em; text-transform:uppercase; padding:2px 0; }
+.gcal-dia {
+    aspect-ratio: 1; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; font-size:0.7rem; font-weight:700; cursor:pointer;
+    border:2px solid transparent; transition:all 0.1s; user-select:none;
+    background:#000; color:#fff;
+}
+.gcal-dia:hover { opacity:0.75; }
+.gcal-dia.dom { background:#b91c1c; }
+.gcal-dia.desmarcado { background:#f5f5f4; color:#d4d4d4; border-color:#e5e5e3; }
+.gcal-dia.vazio { visibility:hidden; }
 </style>
 
 <script>
@@ -361,6 +371,13 @@ document.querySelectorAll('.btn-toggle-entr').forEach(btn => {
     });
 });
 
+// Salvar telefone
+async function salvarTelefone(id, valor) {
+    const fd = new FormData();
+    fd.append('telefone', valor);
+    await fetch(`/api/entregadores/${id}/telefone`, { method: 'POST', body: fd });
+}
+
 // Salvar observação
 async function salvarObs(id, texto) {
     const fd = new FormData();
@@ -384,21 +401,77 @@ async function setCor(id, cor, btn) {
     }
 }
 
-// ---- Gerar escala automática ----
-// Mostra quantos Rápidos/Normais existem
-(function() {
-    const lista = {{ lista | tojson }};
-    const rapidos = lista.filter(e => e.cor === 'RAPIDO' && e.ativo).length;
-    const normais  = lista.filter(e => e.cor === 'NORMAL'  && e.ativo).length;
-    const outros   = lista.filter(e => !e.cor && e.ativo).length;
-    const el = document.getElementById('info-classif');
-    if (el) el.innerHTML =
-        `<span class="entr-nome-rapido font-bold">${rapidos} Rápido(s)</span> &nbsp;·&nbsp; `+
-        `<span class="entr-nome-normal font-bold">${normais} Normal(is)</span> &nbsp;·&nbsp; `+
-        `${outros} sem classificação &nbsp;·&nbsp; ${lista.filter(e=>e.ativo).length} ativos no total`;
-})();
+// ─── Modal Gerar ───────────────────────────────────────────────────────────────
+const _listaEntr = {{ lista | tojson }};
+
+function abrirModalGerar() {
+    document.getElementById('modal-gerar').classList.remove('hidden');
+    document.getElementById('g-resultado').classList.add('hidden');
+    // Info classificação
+    const rapidos = _listaEntr.filter(e => e.cor === 'RAPIDO' && e.ativo).length;
+    const normais  = _listaEntr.filter(e => e.cor === 'NORMAL'  && e.ativo).length;
+    const outros   = _listaEntr.filter(e => !e.cor && e.ativo).length;
+    document.getElementById('info-classif').innerHTML =
+        `<span class="entr-nome-rapido font-bold">${rapidos} Rápido(s)</span> &nbsp;·&nbsp; ` +
+        `<span class="entr-nome-normal font-bold">${normais} Normal(is)</span> &nbsp;·&nbsp; ` +
+        `${outros} sem classificação &nbsp;·&nbsp; ` +
+        `<strong>${_listaEntr.filter(e=>e.ativo).length}</strong> ativos`;
+    renderCalendario();
+}
+function fecharModalGerar() {
+    document.getElementById('modal-gerar').classList.add('hidden');
+}
+
+function renderCalendario() {
+    const mesStr = document.getElementById('g-mes').value;
+    if (!mesStr) return;
+    const [ano, mes] = mesStr.split('-').map(Number);
+    const priDia = new Date(ano, mes - 1, 1);
+    const ultDia = new Date(ano, mes, 0).getDate();
+    const cal = document.getElementById('g-calendario');
+
+    const hdrs = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+    let html = hdrs.map(h => `<div class="gcal-hdr">${h}</div>`).join('');
+
+    // Células em branco antes do 1º dia (semana começa na segunda)
+    const offset = (priDia.getDay() + 6) % 7;
+    for (let i = 0; i < offset; i++) html += `<div class="gcal-dia vazio"></div>`;
+
+    for (let d = 1; d <= ultDia; d++) {
+        const iso = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dow = (new Date(ano, mes - 1, d).getDay() + 6) % 7;
+        const isDom = dow === 6;
+        html += `<div class="gcal-dia${isDom?' dom':''}" data-data="${iso}" onclick="toggleDia(this)">${d}</div>`;
+    }
+    cal.innerHTML = html;
+    atualizarContadorDias();
+}
+
+function toggleDia(el) {
+    el.classList.toggle('desmarcado');
+    atualizarContadorDias();
+}
+function selecionarTodos() {
+    document.querySelectorAll('.gcal-dia:not(.vazio)').forEach(el => el.classList.remove('desmarcado'));
+    atualizarContadorDias();
+}
+function limparTodos() {
+    document.querySelectorAll('.gcal-dia:not(.vazio)').forEach(el => el.classList.add('desmarcado'));
+    atualizarContadorDias();
+}
+function diasSelecionados() {
+    return [...document.querySelectorAll('.gcal-dia:not(.vazio):not(.desmarcado)')].map(el => el.dataset.data);
+}
+function atualizarContadorDias() {
+    const n = diasSelecionados().length;
+    document.getElementById('g-dias-selecionados').textContent =
+        n === 0 ? 'Nenhum dia selecionado' : `${n} dia(s) selecionado(s)`;
+}
 
 async function executarGerar() {
+    const dias = diasSelecionados();
+    if (dias.length === 0) { alert('Selecione pelo menos um dia.'); return; }
+
     const btn = document.getElementById('btn-gerar');
     btn.disabled = true;
     btn.textContent = 'Gerando…';
@@ -409,7 +482,7 @@ async function executarGerar() {
         fd.append('min_rapido', document.getElementById('g-min-r').value);
         fd.append('min_normal', document.getElementById('g-min-n').value);
         if (document.getElementById('g-sobrescrever').checked) fd.append('sobrescrever', '1');
-        document.querySelectorAll('.g-dia-check:checked').forEach(c => fd.append('dias_semana', c.value));
+        dias.forEach(d => fd.append('dias_especificos', d));
 
         const r = await fetch('/api/entregadores/gerar-escala', { method: 'POST', body: fd });
         const data = await r.json();
@@ -430,27 +503,20 @@ async function executarGerar() {
         if (data.avisos && data.avisos.length) {
             avisos.classList.remove('hidden');
             avisos.innerHTML = data.avisos.map(a => `⚠ ${a}`).join('<br>');
-        } else {
-            avisos.classList.add('hidden');
-        }
+        } else { avisos.classList.add('hidden'); }
 
-        const tabela = document.getElementById('g-tabela');
-        tabela.innerHTML = data.contagem.map(d => {
-            const corClass = d.cor === 'RAPIDO' ? 'entr-nome-rapido' :
-                             d.cor === 'NORMAL'  ? 'entr-nome-normal'  : '';
-            const corLabel = d.cor === 'RAPIDO' ? 'Rápido' :
-                             d.cor === 'NORMAL'  ? 'Normal'  : '—';
+        document.getElementById('g-tabela').innerHTML = data.contagem.map(d => {
+            const cc = d.cor === 'RAPIDO' ? 'entr-nome-rapido' : d.cor === 'NORMAL' ? 'entr-nome-normal' : '';
+            const cl = d.cor === 'RAPIDO' ? 'Rápido' : d.cor === 'NORMAL' ? 'Normal' : '—';
             return `<tr>
-                <td class="font-semibold ${corClass}">${d.nome}</td>
-                <td class="${corClass}">${corLabel}</td>
+                <td class="font-semibold ${cc}">${d.nome}</td>
+                <td class="${cc}">${cl}</td>
                 <td class="text-brand-grey text-[0.72rem]">${d.obs || ''}</td>
                 <td class="text-right font-bold">${d.dias}</td>
             </tr>`;
         }).join('');
 
-        // Recarrega a página após 1.5s para mostrar a grade atualizada
-        setTimeout(() => location.reload(), 1500);
-
+        setTimeout(() => location.reload(), 1800);
     } catch(e) {
         alert('Erro ao gerar escala.');
     } finally {

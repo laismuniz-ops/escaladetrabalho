@@ -567,6 +567,15 @@ async def api_set_cor_entregador(request: Request, eid: int) -> dict:
     models.set_cor_entregador(eid, cor)
     return {"ok": True, "cor": cor}
 
+@app.post("/api/entregadores/{eid}/telefone")
+async def api_set_telefone_entregador(request: Request, eid: int) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    telefone = str(form.get("telefone", ""))
+    models.set_telefone_entregador(eid, telefone)
+    return {"ok": True}
+
 
 @app.post("/api/entregadores/gerar-escala")
 async def api_gerar_escala_entregadores(request: Request) -> dict:
@@ -579,9 +588,9 @@ async def api_gerar_escala_entregadores(request: Request) -> dict:
     min_r      = int(form.get("min_rapido", 0))
     min_n      = int(form.get("min_normal", 0))
     sobrescrever = form.get("sobrescrever", "") == "1"
-    dias_raw   = form.getlist("dias_semana")
-    dias_semana = [int(d) for d in dias_raw] if dias_raw else list(range(7))
-    resultado  = models.gerar_escala_auto(ano, mes_num, total, min_r, min_n, dias_semana, sobrescrever)
+    dias_raw       = form.getlist("dias_especificos")
+    dias_especificos = dias_raw if dias_raw else None
+    resultado  = models.gerar_escala_auto(ano, mes_num, total, min_r, min_n, dias_especificos, sobrescrever)
     return resultado
 
 

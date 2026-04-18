@@ -64,7 +64,7 @@ def _seed_entregadores_if_empty(cur) -> None:
         nomes = sorted(_ENTREGADORES_INICIAIS, key=lambda n: n.lower())
         for i, nome in enumerate(nomes):
             cur.execute(
-                "INSERT INTO entregadores (nome, obs, cor, ordem) VALUES (?, '', '', ?)",
+                "INSERT INTO entregadores (nome, obs, cor, telefone, ordem) VALUES (?, '', '', '', ?)",
                 (nome, i * 10),
             )
 
@@ -89,6 +89,9 @@ def _migrate_entregadores_if_needed(cur) -> None:
             cur.execute("UPDATE entregadores SET ordem = ? WHERE id = ?", (i * 10, row["id"]))
     # Renomeia DEVAGAR → NORMAL (migração de nomenclatura)
     cur.execute("UPDATE entregadores SET cor = 'NORMAL' WHERE cor = 'DEVAGAR'")
+    # Adiciona coluna telefone se não existir
+    if "telefone" not in cols:
+        cur.execute("ALTER TABLE entregadores ADD COLUMN telefone TEXT NOT NULL DEFAULT ''")
 
 
 def _migrate_minimos_if_needed(cur) -> None:

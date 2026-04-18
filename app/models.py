@@ -299,16 +299,16 @@ def listar_entregadores(ativos_apenas: bool = True) -> list[dict]:
         cur.execute(sql)
         return [dict(r) for r in cur.fetchall()]
 
-def criar_entregador(nome: str, obs: str = "", cor: str = "", ordem: int = 0) -> int:
+def criar_entregador(nome: str, obs: str = "", cor: str = "", telefone: str = "", ordem: int = 0) -> int:
     with db_cursor() as cur:
         cur.execute(
-            "INSERT INTO entregadores (nome, obs, cor, ordem) VALUES (?, ?, ?, ?)",
-            (nome.strip(), obs.strip(), cor.strip(), ordem),
+            "INSERT INTO entregadores (nome, obs, cor, telefone, ordem) VALUES (?, ?, ?, ?, ?)",
+            (nome.strip(), obs.strip(), cor.strip(), telefone.strip(), ordem),
         )
         return cur.lastrowid
 
 def atualizar_entregador(eid: int, nome: str = None, ativo: bool = None,
-                          obs: str = None, cor: str = None) -> None:
+                          obs: str = None, cor: str = None, telefone: str = None) -> None:
     campos, valores = [], []
     if nome is not None:
         campos.append("nome = ?"); valores.append(nome.strip())
@@ -318,6 +318,8 @@ def atualizar_entregador(eid: int, nome: str = None, ativo: bool = None,
         campos.append("obs = ?"); valores.append(obs.strip())
     if cor is not None:
         campos.append("cor = ?"); valores.append(cor.strip())
+    if telefone is not None:
+        campos.append("telefone = ?"); valores.append(telefone.strip())
     if not campos:
         return
     valores.append(eid)
@@ -327,6 +329,10 @@ def atualizar_entregador(eid: int, nome: str = None, ativo: bool = None,
 def set_obs_entregador(eid: int, texto: str) -> None:
     with db_cursor() as cur:
         cur.execute("UPDATE entregadores SET obs = ? WHERE id = ?", (texto.strip(), eid))
+
+def set_telefone_entregador(eid: int, telefone: str) -> None:
+    with db_cursor() as cur:
+        cur.execute("UPDATE entregadores SET telefone = ? WHERE id = ?", (telefone.strip(), eid))
 
 def set_cor_entregador(eid: int, cor: str) -> None:
     """cor: 'RAPIDO', 'NORMAL' ou '' para limpar."""
@@ -404,14 +410,15 @@ def gerar_escala_auto(
     total_por_dia: int,
     min_rapido: int,
     min_normal: int,
-    dias_semana: list,          # lista de ints 0=Seg … 6=Dom
+    dias_especificos: list = None,  # lista de strings ISO; None = mês inteiro
     sobrescrever: bool = False,
 ) -> dict:
     """
-    Gera escala automática para o mês.
-    - Distribui os entregadores de forma equilibrada (quem trabalhou menos vai primeiro)
+    Gera escala automática.
+    - Distribui de forma equilibrada (quem trabalhou menos vai primeiro)
     - Garante mínimos de Rápidos e Normais por dia
-    - Retorna resumo com contagem por entregador e avisos
+    - Respeita limite de 2 dias por semana por entregador
+    - dias_especificos: lista de ISO strings; None = todos os dias do mês
     """
     from datetime import date as _date
 
@@ -430,15 +437,14 @@ def gerar_escala_auto(
     if _min_n < min_normal:
         avisos.append(f"Apenas {len(normais)} Normal(is) disponível(is); usando todos.")
 
-    # Dias do mês que são dias de trabalho
-    num_dias = _cal.monthrange(ano, mes)[1]
-    dias_trabalho = [
-        _date(ano, mes, d)
-        for d in range(1, num_dias + 1)
-        if _date(ano, mes, d).weekday() in dias_semana
-    ]
+    # Dias a trabalhar
+    if dias_especificos:
+        dias_trabalho = sorted([_date.fromisoformat(d) for d in dias_especificos])
+    else:
+        num_dias = _cal.monthrange(ano, mes)[1]
+        dias_trabalho = [_date(ano, mes, d) for d in range(1, num_dias + 1)]
 
-    # Se não sobrescrever, descobre dias que já têm pelo menos 1 entregador escalado
+    # Se não sobrescrever, descobre dias que já têm escala
     dias_existentes: set = set()
     if not sobrescrever:
         existente = escala_entregadores_mensal(ano, mes)
@@ -446,40 +452,53 @@ def gerar_escala_auto(
             dias_existentes.update(turnos.keys())
 
     contagem = {d["id"]: 0 for d in drivers}
+    # semanas: {driver_id: {(iso_year, iso_week): count}}
+    semanas: dict = {d["id"]: {} for d in drivers}
     dias_gerados = 0
 
     for dia in dias_trabalho:
         iso = dia.isoformat()
         if not sobrescrever and iso in dias_existentes:
-            continue  # já tem escala neste dia, pula
+            continue
+
+        # Chave da semana ISO para regra de 2x/semana
+        cal_week = dia.isocalendar()[:2]  # (year, week_number)
+
+        def elegivel(d):
+            return semanas[d["id"]].get(cal_week, 0) < 2
+
+        elig_rapidos = [d for d in rapidos if elegivel(d)]
+        elig_normais  = [d for d in normais  if elegivel(d)]
+        elig_todos    = [d for d in drivers  if elegivel(d)]
 
         selecionados: set = set()
 
         # 1. Rápidos com menos dias primeiro
-        r_sorted = sorted(rapidos, key=lambda d: (contagem[d["id"]], d["ordem"]))
+        r_sorted = sorted(elig_rapidos, key=lambda d: (contagem[d["id"]], d["ordem"]))
         for d in r_sorted[:_min_r]:
             selecionados.add(d["id"])
 
         # 2. Normais com menos dias primeiro
-        n_sorted = sorted(normais, key=lambda d: (contagem[d["id"]], d["ordem"]))
+        n_sorted = sorted(elig_normais, key=lambda d: (contagem[d["id"]], d["ordem"]))
         for d in n_sorted[:_min_n]:
             selecionados.add(d["id"])
 
-        # 3. Preenche restante com qualquer driver (menos dias primeiro)
+        # 3. Preenche restante com qualquer elegível
         restante = max(0, total_por_dia - len(selecionados))
         if restante:
             pool = sorted(
-                [d for d in drivers if d["id"] not in selecionados],
+                [d for d in elig_todos if d["id"] not in selecionados],
                 key=lambda d: (contagem[d["id"]], d["ordem"]),
             )
             for d in pool[:restante]:
                 selecionados.add(d["id"])
 
-        # Salva no banco
+        # Salva
         for d in drivers:
             if d["id"] in selecionados:
                 set_status_entregador(d["id"], iso, "ESCALADO")
                 contagem[d["id"]] += 1
+                semanas[d["id"]][cal_week] = semanas[d["id"]].get(cal_week, 0) + 1
 
         dias_gerados += 1
 
