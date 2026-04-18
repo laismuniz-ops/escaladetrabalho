@@ -163,10 +163,12 @@ def home(request: Request, data: Optional[str] = None) -> HTMLResponse:
                         "minimo": min_val,
                         "deficit": min_val - atual,
                     })
+    entregadores_dia = models.escala_entregadores_do_dia(dia.isoformat())
     return templates.TemplateResponse(
         "dia.html",
         _ctx(request, data=dia, grupos=grupos, setores=setores_ordenados,
-             total=len(escalados), alertas_dia=alertas_dia),
+             total=len(escalados), alertas_dia=alertas_dia,
+             entregadores_dia=entregadores_dia),
     )
 
 
@@ -607,6 +609,19 @@ async def api_gerar_escala_entregadores(request: Request) -> dict:
     dias_especificos = dias_raw if dias_raw else None
     resultado  = models.gerar_escala_auto(ano, mes_num, totais, min_r_list, min_n_list, dias_especificos, sobrescrever)
     return resultado
+
+@app.post("/api/entregadores/restaurar-geracao")
+async def api_restaurar_geracao(request: Request) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    mes_str = str(form.get("mes", ""))
+    ano, mes_num = _parse_mes(mes_str if mes_str else None)
+    try:
+        n = models.restaurar_snapshot_geracao(ano, mes_num)
+        return {"ok": True, "restaurados": n}
+    except ValueError as e:
+        return {"ok": False, "erro": str(e)}
 
 
 # ---------- PDF ----------

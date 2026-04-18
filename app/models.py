@@ -386,6 +386,19 @@ def set_status_entregador(eid: int, data_iso: str, status: str = None) -> None:
             (eid, data_iso, status)
         )
 
+def escala_entregadores_do_dia(data_iso: str) -> list[dict]:
+    """Retorna entregadores escalados ou confirmados no dia."""
+    with db_cursor() as cur:
+        cur.execute("""
+            SELECT e.id, e.nome, e.cor, e.obs, ee.status
+            FROM escala_entregadores ee
+            JOIN entregadores e ON e.id = ee.entregador_id
+            WHERE ee.data = ? AND ee.status IN ('ESCALADO', 'CONFIRMADO')
+            ORDER BY e.ordem, e.nome
+        """, (data_iso,))
+        return [dict(r) for r in cur.fetchall()]
+
+
 def escala_entregadores_mensal(ano: int, mes: int) -> dict[int, dict[str, str]]:
     primeiro = f"{ano:04d}-{mes:02d}-01"
     proximo = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
@@ -481,6 +494,43 @@ def _dias_disponiveis_obs(obs: str) -> "dict | None":
         return None
     return {"dias_semana": dias_semana_rest, "paridade": paridade}
 
+# ── Snapshot em memória para undo da última geração (por mês)
+_undo_escala: dict = {}
+
+def _salvar_snapshot_geracao(ano: int, mes: int) -> None:
+    """Salva estado atual da escala do mês para possível undo."""
+    primeiro = f"{ano:04d}-{mes:02d}-01"
+    proximo = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT entregador_id, data, status FROM escala_entregadores WHERE data >= ? AND data < ?",
+            (primeiro, proximo),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    _undo_escala[f"{ano:04d}-{mes:02d}"] = rows
+
+
+def restaurar_snapshot_geracao(ano: int, mes: int) -> int:
+    """Restaura escala do mês para o estado antes da última geração. Retorna nº de linhas."""
+    key = f"{ano:04d}-{mes:02d}"
+    if key not in _undo_escala:
+        raise ValueError("Nenhuma geração recente para desfazer neste mês.")
+    snapshot = _undo_escala.pop(key)
+    primeiro = f"{ano:04d}-{mes:02d}-01"
+    proximo = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
+    with db_cursor() as cur:
+        cur.execute(
+            "DELETE FROM escala_entregadores WHERE data >= ? AND data < ?",
+            (primeiro, proximo),
+        )
+        for row in snapshot:
+            cur.execute(
+                "INSERT INTO escala_entregadores (entregador_id, data, status) VALUES (?, ?, ?)",
+                (row["entregador_id"], row["data"], row["status"]),
+            )
+    return len(snapshot)
+
+
 def gerar_escala_auto(
     ano: int,
     mes: int,
@@ -504,6 +554,9 @@ def gerar_escala_auto(
     drivers = listar_entregadores(ativos_apenas=True)
     if not drivers:
         return {"erro": "Nenhum entregador ativo.", "dias_gerados": 0, "contagem": [], "avisos": []}
+
+    # Salva snapshot antes de qualquer modificação (permite undo)
+    _salvar_snapshot_geracao(ano, mes)
 
     rapidos = [d for d in drivers if d["cor"] == "RAPIDO"]
     normais  = [d for d in drivers if d["cor"] == "NORMAL"]
@@ -571,6 +624,8 @@ def gerar_escala_auto(
                     semanas[eid][ck] = semanas[eid].get(ck, 0) + 1
 
     dias_gerados = 0
+    dias_processados: list = []
+    escalados_por_dia: dict = {}
     dias_pulados = 0        # dias que já tinham escala e foram ignorados (sobrescrever=False)
     dias_vazios = 0         # dias gerados mas com 0 entregadores disponíveis
 
@@ -638,6 +693,10 @@ def gerar_escala_auto(
                 semanas[d["id"]][cal_week] = semanas[d["id"]].get(cal_week, 0) + 1
 
         dias_gerados += 1
+        dias_processados.append(iso)
+        for d in drivers:
+            if d["id"] in selecionados:
+                escalados_por_dia.setdefault(iso, []).append(d["id"])
 
     if dias_vazios > 0:
         avisos.append(
@@ -649,6 +708,8 @@ def gerar_escala_auto(
         "dias_gerados": dias_gerados,
         "dias_pulados": dias_pulados,
         "avisos": avisos,
+        "dias_processados": dias_processados,
+        "escalados_por_dia": escalados_por_dia,
         "contagem": [
             {
                 "nome": d["nome"],

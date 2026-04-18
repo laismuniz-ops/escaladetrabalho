@@ -18,6 +18,10 @@
                     class="gs-btn gs-btn-primary whitespace-nowrap">
                 ⚡ Gerar automático
             </button>
+            <button type="button" onclick="executarDesfazer()"
+                    class="gs-btn gs-btn-ghost whitespace-nowrap text-xs">
+                ↩ Desfazer geração
+            </button>
             <button type="button" onclick="abrirModalLimpar()"
                     class="gs-btn gs-btn-danger whitespace-nowrap">
                 🗑 Desfazer escala
@@ -344,6 +348,7 @@
         <div id="g-resultado" class="hidden">
             <div class="border-t border-brand-border pt-4 space-y-3">
                 <p id="g-resumo" class="text-sm font-bold"></p>
+                <button id="btn-desfazer-modal" class="hidden gs-btn gs-btn-ghost text-xs py-1.5 px-3" onclick="executarDesfazer()">↩ Desfazer</button>
                 <div id="g-avisos" class="hidden gs-alert-erro text-xs"></div>
                 <table class="gs-table text-xs">
                     <thead><tr><th>Entregador</th><th>Tipo</th><th>Obs</th><th class="text-right">Dias</th></tr></thead>
@@ -460,6 +465,7 @@ menu.querySelectorAll('button[data-status]').forEach(btn => {
                 celulaAtiva.textContent = '';
             }
         } catch { alert('Erro ao salvar.'); }
+        verificarExcessoSemanal();
         menu.style.display = 'none';
         celulaAtiva = null;
     });
@@ -656,6 +662,8 @@ async function executarGerar() {
             resumoTxt += ` · ${data.dias_pulados} dia(s) pulado(s) — já tinham escala. Marque "Sobrescrever" para regenerar.`;
         }
         document.getElementById('g-resumo').textContent = resumoTxt;
+        atualizarCelulasGeradas(data.dias_processados || [], data.escalados_por_dia || {});
+        document.getElementById('btn-desfazer-modal').classList.remove('hidden');
 
         const avisos = document.getElementById('g-avisos');
         if (data.avisos && data.avisos.length) {
@@ -674,7 +682,6 @@ async function executarGerar() {
             </tr>`;
         }).join('');
 
-        setTimeout(() => location.reload(), 1800);
     } catch(e) {
         alert('Erro ao gerar escala.');
     } finally {
@@ -682,5 +689,75 @@ async function executarGerar() {
         btn.textContent = '⚡ Gerar';
     }
 }
+
+// ─── Semana Dom-Sáb (chave para verificação de excesso) ─────────────────────
+function semanaChaveEntr(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const dom = new Date(y, m - 1, d - dt.getDay());
+    return `${dom.getFullYear()}-${String(dom.getMonth()+1).padStart(2,'0')}-${String(dom.getDate()).padStart(2,'0')}`;
+}
+
+// ─── Verifica excesso semanal (3º+ dia → célula vermelha) ────────────────────
+function verificarExcessoSemanal() {
+    const counts = {};
+    document.querySelectorAll('.entr-cell').forEach(cell => {
+        if (!cell.dataset.status) return;
+        const k = `${cell.dataset.id}_${semanaChaveEntr(cell.dataset.data)}`;
+        counts[k] = (counts[k] || 0) + 1;
+    });
+    document.querySelectorAll('.entr-cell').forEach(cell => {
+        const k = `${cell.dataset.id}_${semanaChaveEntr(cell.dataset.data)}`;
+        if (cell.dataset.status && counts[k] > 2) {
+            cell.classList.add('entr-excesso');
+        } else {
+            cell.classList.remove('entr-excesso');
+        }
+    });
+}
+
+// ─── Atualiza células da grade após geração (sem reload) ─────────────────────
+function atualizarCelulasGeradas(diasProcessados, escaladosPorDia) {
+    diasProcessados.forEach(iso => {
+        document.querySelectorAll(`.entr-cell[data-data="${iso}"]`).forEach(cell => {
+            cell.className = 'entr-cell entr-vazio';
+            cell.textContent = '';
+            cell.dataset.status = '';
+        });
+    });
+    for (const [iso, eids] of Object.entries(escaladosPorDia)) {
+        eids.forEach(eid => {
+            const cell = document.querySelector(`.entr-cell[data-id="${eid}"][data-data="${iso}"]`);
+            if (cell) {
+                cell.className = 'entr-cell entr-ESCALADO';
+                cell.textContent = 'E';
+                cell.dataset.status = 'ESCALADO';
+            }
+        });
+    }
+    verificarExcessoSemanal();
+}
+
+// ─── Desfazer última geração ─────────────────────────────────────────────────
+async function executarDesfazer() {
+    const mes = document.getElementById('g-mes')?.value
+               || document.querySelector('input[name="mes"]')?.value
+               || '{{ mes_str }}';
+    if (!confirm('Desfazer a última geração automática deste mês?\nIsso restaurará a escala ao estado anterior à geração.')) return;
+    const fd = new FormData();
+    fd.append('mes', mes);
+    try {
+        const r = await fetch('/api/entregadores/restaurar-geracao', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (data.ok) {
+            location.reload();
+        } else {
+            alert(data.erro || 'Nenhuma geração recente para desfazer.');
+        }
+    } catch { alert('Erro ao conectar.'); }
+}
+
+// Verificação inicial ao carregar
+verificarExcessoSemanal();
 </script>
 {% endblock %}

@@ -80,6 +80,28 @@
     {% endif %}
     {% endfor %}
     </div>
+
+    {% if entregadores_dia %}
+    <div class="gs-card overflow-hidden">
+        <div class="setor-header text-sm font-black tracking-[0.2em]">Entregadores</div>
+        <div class="px-5 py-4">
+            <ul class="space-y-2">
+            {% for e in entregadores_dia %}
+            <li class="flex items-center justify-between gap-3">
+                <span class="font-semibold text-sm
+                    {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}">
+                    {{ e.nome }}
+                    {% if e.obs %}<span class="text-brand-grey text-xs font-normal ml-1">{{ e.obs }}</span>{% endif %}
+                </span>
+                <span class="{% if e.status == 'CONFIRMADO' %}entr-CONFIRMADO{% else %}entr-ESCALADO{% endif %} px-3 py-0.5 rounded text-xs font-bold tracking-wider shrink-0">
+                    {{ 'C — Confirmado' if e.status == 'CONFIRMADO' else 'E — Escalado' }}
+                </span>
+            </li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
     {% endif %}
 
 </div>

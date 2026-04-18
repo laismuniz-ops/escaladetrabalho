@@ -205,6 +205,8 @@ input[type="checkbox"].gs-check {
 .entr-ESCALADO   { background: #fef3c7; color: #78350f; border: 1px solid #fcd34d; }
 .entr-CONFIRMADO { background: #dcfce7; color: #14532d; border: 1px solid #86efac; }
 .entr-vazio      { background: #fafafa; color: #d4d4d4; }
+/* Excesso semanal — 3º+ dia na mesma semana Dom–Sáb */
+.entr-excesso { background: #fee2e2 !important; color: #991b1b !important; border-color: #fca5a5 !important; outline: 2px solid #ef4444; }
 
 /* Cor de velocidade no nome do entregador */
 .entr-nome-rapido { color: #3b82f6 !important; }
