@@ -93,7 +93,8 @@
       "mcp__Claude_in_Chrome__navigate",
       "Bash(.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 18765)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:18765/entregadores)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(python3 -c \"from app.database import init_db; init_db\\(\\); print\\('OK'\\)\")"
     ]
   }
 }
