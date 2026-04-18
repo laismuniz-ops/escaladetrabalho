@@ -577,6 +577,18 @@ async def api_set_telefone_entregador(request: Request, eid: int) -> dict:
     return {"ok": True}
 
 
+@app.post("/api/entregadores/limpar-escala")
+async def api_limpar_escala_entregadores(request: Request) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    mes_str = str(form.get("mes", ""))
+    ano, mes_num = _parse_mes(mes_str if mes_str else None)
+    dias_raw = form.getlist("dias_especificos")
+    dias_especificos = dias_raw if dias_raw else None
+    removidos = models.limpar_escala_entregadores(ano, mes_num, dias_especificos)
+    return {"ok": True, "removidos": removidos}
+
 @app.post("/api/entregadores/gerar-escala")
 async def api_gerar_escala_entregadores(request: Request) -> dict:
     if not auth.get_usuario_sessao(request):

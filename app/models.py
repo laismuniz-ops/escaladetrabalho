@@ -462,8 +462,11 @@ def gerar_escala_auto(
         if not sobrescrever and iso in dias_existentes:
             continue
 
-        # Chave da semana ISO para regra de 2x/semana
-        cal_week = dia.isocalendar()[:2]  # (year, week_number)
+        # Semana Seg–Sáb: domingo tem chave única → não conta para o limite
+        if dia.weekday() == 6:
+            cal_week = ("dom", dia.isoformat())
+        else:
+            cal_week = dia.isocalendar()[:2]  # (year, iso_week)  — Seg a Sáb
 
         def elegivel(d):
             return semanas[d["id"]].get(cal_week, 0) < 2
@@ -517,3 +520,25 @@ def gerar_escala_auto(
             for d in sorted(drivers, key=lambda d: -contagem[d["id"]])
         ],
     }
+
+
+def limpar_escala_entregadores(ano: int, mes: int, dias_especificos: list = None) -> int:
+    """Remove entradas de escala_entregadores do mês (ou dias específicos).
+    Retorna o número de registros removidos."""
+    if dias_especificos:
+        placeholders = ",".join("?" * len(dias_especificos))
+        with db_cursor() as cur:
+            cur.execute(
+                f"DELETE FROM escala_entregadores WHERE data IN ({placeholders})",
+                dias_especificos,
+            )
+            return cur.rowcount
+    else:
+        primeiro = f"{ano:04d}-{mes:02d}-01"
+        proximo = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
+        with db_cursor() as cur:
+            cur.execute(
+                "DELETE FROM escala_entregadores WHERE data >= ? AND data < ?",
+                (primeiro, proximo),
+            )
+            return cur.rowcount

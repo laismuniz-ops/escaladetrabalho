@@ -18,6 +18,10 @@
                     class="gs-btn gs-btn-primary whitespace-nowrap">
                 ⚡ Gerar automático
             </button>
+            <button type="button" onclick="abrirModalLimpar()"
+                    class="gs-btn gs-btn-danger whitespace-nowrap">
+                🗑 Desfazer escala
+            </button>
         </div>
     </div>
 
@@ -188,6 +192,47 @@
         {% endif %}
     </div>
 
+    <!-- Modal Desfazer / Limpar Escala -->
+    <div id="modal-limpar" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg my-6 p-6 space-y-4">
+
+        <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold uppercase tracking-wide">🗑 Desfazer Escala</h2>
+            <button onclick="fecharModalLimpar()" class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
+        </div>
+
+        <div class="gs-alert-erro text-xs">
+            ⚠ Esta ação remove os status <strong>E</strong> e <strong>C</strong> dos dias selecionados. Não pode ser desfeita.
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="gs-section-title block mb-1">Mês</label>
+                <input type="month" id="l-mes" value="{{ mes_str }}" class="gs-input" onchange="renderCalEm('l-calendario','l-mes','l-dias-selecionados')">
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="gs-section-title">Dias a limpar</label>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="selecionarTodosEm('l-calendario','l-dias-selecionados')" class="text-xs font-bold underline text-brand-grey hover:text-black">Mês inteiro</button>
+                        <button type="button" onclick="limparTodosEm('l-calendario','l-dias-selecionados')" class="text-xs font-bold underline text-brand-grey hover:text-black">Limpar</button>
+                    </div>
+                </div>
+                <div id="l-calendario" class="select-none"></div>
+                <p id="l-dias-selecionados" class="text-xs text-brand-grey mt-1"></p>
+            </div>
+        </div>
+
+        <div id="l-resultado" class="hidden gs-alert-ok text-xs"></div>
+
+        <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
+            <button onclick="fecharModalLimpar()" class="gs-btn gs-btn-ghost">Cancelar</button>
+            <button onclick="executarLimpar()" id="btn-limpar" class="gs-btn gs-btn-danger">🗑 Desfazer</button>
+        </div>
+    </div>
+    </div>
+
     <!-- Modal Gerar Escala Automática -->
     <div id="modal-gerar" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg my-6 p-6 space-y-4">
@@ -253,6 +298,15 @@
                     Sobrescrever escala já existente no mês
                 </label>
             </div>
+
+            <!-- Regras -->
+            <div class="col-span-2 bg-brand-surface rounded-lg px-4 py-3 space-y-1">
+                <p class="gs-section-title mb-1">Regras aplicadas</p>
+                <p class="text-xs text-brand-grey">✔ Máx. <strong>2 dias por semana</strong> por entregador — semana: <strong>Segunda a Sábado</strong></p>
+                <p class="text-xs text-brand-grey">✔ Domingo não entra no limite semanal</p>
+                <p class="text-xs text-brand-grey">✔ Distribuição equilibrada — quem trabalhou menos vai primeiro</p>
+                <p class="text-xs text-brand-grey">✔ Mínimos de Rápidos e Normais respeitados por dia</p>
+            </div>
         </div>
 
         <!-- Resultado -->
@@ -260,7 +314,6 @@
             <div class="border-t border-brand-border pt-4 space-y-3">
                 <p id="g-resumo" class="text-sm font-bold"></p>
                 <div id="g-avisos" class="hidden gs-alert-erro text-xs"></div>
-                <p class="text-xs text-brand-grey">Regra aplicada: máx. 2 dias/semana por entregador</p>
                 <table class="gs-table text-xs">
                     <thead><tr><th>Entregador</th><th>Tipo</th><th>Obs</th><th class="text-right">Dias</th></tr></thead>
                     <tbody id="g-tabela"></tbody>
@@ -423,13 +476,60 @@ async function setCor(id, cor, btn) {
     }
 }
 
-// ─── Modal Gerar ───────────────────────────────────────────────────────────────
+// ─── Calendário reutilizável ────────────────────────────────────────────────────
 const _listaEntr = {{ lista | tojson }};
 
+function renderCalEm(calId, mesId, counterId) {
+    const mesStr = document.getElementById(mesId).value;
+    if (!mesStr) return;
+    const [ano, mes] = mesStr.split('-').map(Number);
+    const priDia = new Date(ano, mes - 1, 1);
+    const ultDia = new Date(ano, mes, 0).getDate();
+    const cal = document.getElementById(calId);
+    const hdrs = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+    let html = hdrs.map(h => `<div class="gcal-hdr">${h}</div>`).join('');
+    const offset = (priDia.getDay() + 6) % 7;
+    for (let i = 0; i < offset; i++) html += `<div class="gcal-dia vazio"></div>`;
+    for (let d = 1; d <= ultDia; d++) {
+        const iso = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dow = (new Date(ano, mes - 1, d).getDay() + 6) % 7;
+        html += `<div class="gcal-dia${dow===6?' dom':''}" data-cal="${calId}" data-data="${iso}"
+                      onclick="toggleDiaEm(this,'${counterId}')">${d}</div>`;
+    }
+    cal.innerHTML = html;
+    atualizarContadorEm(calId, counterId);
+}
+function toggleDiaEm(el, counterId) {
+    el.classList.toggle('desmarcado');
+    atualizarContadorEm(el.dataset.cal, counterId);
+}
+function selecionarTodosEm(calId, counterId) {
+    document.querySelectorAll(`#${calId} .gcal-dia:not(.vazio)`).forEach(el => el.classList.remove('desmarcado'));
+    atualizarContadorEm(calId, counterId);
+}
+function limparTodosEm(calId, counterId) {
+    document.querySelectorAll(`#${calId} .gcal-dia:not(.vazio)`).forEach(el => el.classList.add('desmarcado'));
+    atualizarContadorEm(calId, counterId);
+}
+function diasSelecionadosEm(calId) {
+    return [...document.querySelectorAll(`#${calId} .gcal-dia:not(.vazio):not(.desmarcado)`)].map(el => el.dataset.data);
+}
+function atualizarContadorEm(calId, counterId) {
+    const n = diasSelecionadosEm(calId).length;
+    const el = document.getElementById(counterId);
+    if (el) el.textContent = n === 0 ? 'Nenhum dia selecionado' : `${n} dia(s) selecionado(s)`;
+}
+
+// Atalhos para o modal de geração (compatibilidade)
+function renderCalendario() { renderCalEm('g-calendario','g-mes','g-dias-selecionados'); }
+function selecionarTodos()   { selecionarTodosEm('g-calendario','g-dias-selecionados'); }
+function limparTodos()       { limparTodosEm('g-calendario','g-dias-selecionados'); }
+function diasSelecionados()  { return diasSelecionadosEm('g-calendario'); }
+
+// ─── Modal Gerar ────────────────────────────────────────────────────────────────
 function abrirModalGerar() {
     document.getElementById('modal-gerar').classList.remove('hidden');
     document.getElementById('g-resultado').classList.add('hidden');
-    // Info classificação
     const rapidos = _listaEntr.filter(e => e.cor === 'RAPIDO' && e.ativo).length;
     const normais  = _listaEntr.filter(e => e.cor === 'NORMAL'  && e.ativo).length;
     const outros   = _listaEntr.filter(e => !e.cor && e.ativo).length;
@@ -440,54 +540,34 @@ function abrirModalGerar() {
         `<strong>${_listaEntr.filter(e=>e.ativo).length}</strong> ativos`;
     renderCalendario();
 }
-function fecharModalGerar() {
-    document.getElementById('modal-gerar').classList.add('hidden');
-}
+function fecharModalGerar() { document.getElementById('modal-gerar').classList.add('hidden'); }
 
-function renderCalendario() {
-    const mesStr = document.getElementById('g-mes').value;
-    if (!mesStr) return;
-    const [ano, mes] = mesStr.split('-').map(Number);
-    const priDia = new Date(ano, mes - 1, 1);
-    const ultDia = new Date(ano, mes, 0).getDate();
-    const cal = document.getElementById('g-calendario');
+// ─── Modal Limpar ───────────────────────────────────────────────────────────────
+function abrirModalLimpar() {
+    document.getElementById('modal-limpar').classList.remove('hidden');
+    document.getElementById('l-resultado').classList.add('hidden');
+    renderCalEm('l-calendario','l-mes','l-dias-selecionados');
+}
+function fecharModalLimpar() { document.getElementById('modal-limpar').classList.add('hidden'); }
 
-    const hdrs = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
-    let html = hdrs.map(h => `<div class="gcal-hdr">${h}</div>`).join('');
-
-    // Células em branco antes do 1º dia (semana começa na segunda)
-    const offset = (priDia.getDay() + 6) % 7;
-    for (let i = 0; i < offset; i++) html += `<div class="gcal-dia vazio"></div>`;
-
-    for (let d = 1; d <= ultDia; d++) {
-        const iso = `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const dow = (new Date(ano, mes - 1, d).getDay() + 6) % 7;
-        const isDom = dow === 6;
-        html += `<div class="gcal-dia${isDom?' dom':''}" data-data="${iso}" onclick="toggleDia(this)">${d}</div>`;
-    }
-    cal.innerHTML = html;
-    atualizarContadorDias();
-}
-
-function toggleDia(el) {
-    el.classList.toggle('desmarcado');
-    atualizarContadorDias();
-}
-function selecionarTodos() {
-    document.querySelectorAll('.gcal-dia:not(.vazio)').forEach(el => el.classList.remove('desmarcado'));
-    atualizarContadorDias();
-}
-function limparTodos() {
-    document.querySelectorAll('.gcal-dia:not(.vazio)').forEach(el => el.classList.add('desmarcado'));
-    atualizarContadorDias();
-}
-function diasSelecionados() {
-    return [...document.querySelectorAll('.gcal-dia:not(.vazio):not(.desmarcado)')].map(el => el.dataset.data);
-}
-function atualizarContadorDias() {
-    const n = diasSelecionados().length;
-    document.getElementById('g-dias-selecionados').textContent =
-        n === 0 ? 'Nenhum dia selecionado' : `${n} dia(s) selecionado(s)`;
+async function executarLimpar() {
+    const dias = diasSelecionadosEm('l-calendario');
+    if (dias.length === 0) { alert('Selecione pelo menos um dia.'); return; }
+    if (!confirm(`Remover a escala de ${dias.length} dia(s)? Esta ação não pode ser desfeita.`)) return;
+    const btn = document.getElementById('btn-limpar');
+    btn.disabled = true; btn.textContent = 'Limpando…';
+    try {
+        const fd = new FormData();
+        fd.append('mes', document.getElementById('l-mes').value);
+        dias.forEach(d => fd.append('dias_especificos', d));
+        const r = await fetch('/api/entregadores/limpar-escala', { method: 'POST', body: fd });
+        const data = await r.json();
+        const res = document.getElementById('l-resultado');
+        res.classList.remove('hidden');
+        res.textContent = `✓ Escala removida de ${data.removidos} registro(s).`;
+        setTimeout(() => location.reload(), 1200);
+    } catch(e) { alert('Erro ao limpar escala.'); }
+    finally { btn.disabled = false; btn.textContent = '🗑 Desfazer'; }
 }
 
 async function executarGerar() {
