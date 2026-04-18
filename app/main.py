@@ -291,24 +291,17 @@ def usuarios_page(request: Request) -> HTMLResponse:
 
 
 @app.post("/api/usuarios")
-def criar_usuario_route(
-    request: Request,
-    username: str = Form(...),
-    nome: str = Form(...),
-    senha: str = Form(...),
-    is_admin: Optional[str] = Form(None),
-    abas: Optional[List[str]] = Form(None),
-) -> RedirectResponse:
+async def criar_usuario_route(request: Request) -> RedirectResponse:
     if redir := auth.verificar_permissao(request, "usuarios"):
         return redir
+    form = await request.form()
+    username = str(form.get("username", ""))
+    nome = str(form.get("nome", ""))
+    senha = str(form.get("senha", ""))
+    is_admin = form.get("is_admin") is not None
+    abas = form.getlist("abas") or []
     try:
-        auth.criar_usuario(
-            username=username,
-            nome=nome,
-            senha=senha,
-            is_admin=is_admin is not None,
-            abas=abas or [],
-        )
+        auth.criar_usuario(username=username, nome=nome, senha=senha, is_admin=is_admin, abas=abas)
         request.session["usuario_ok"] = f"Usuário '{nome}' criado com sucesso."
     except Exception as e:
         request.session["usuario_erro"] = f"Erro: {e}"
@@ -316,24 +309,26 @@ def criar_usuario_route(
 
 
 @app.post("/api/usuarios/{uid}/atualizar")
-def atualizar_usuario_route(
+async def atualizar_usuario_route(
     request: Request,
     uid: int,
-    nome: str = Form(...),
-    senha: Optional[str] = Form(None),
-    is_admin: Optional[str] = Form(None),
-    abas: Optional[List[str]] = Form(None),
-    ativo: Optional[str] = Form(None),
 ) -> RedirectResponse:
     if redir := auth.verificar_permissao(request, "usuarios"):
         return redir
+    form = await request.form()
+    nome = str(form.get("nome", ""))
+    senha = str(form.get("senha", "")) or None
+    is_admin = form.get("is_admin") is not None
+    ativo = form.get("ativo") is not None
+    abas_raw = form.getlist("abas")
+    abas = abas_raw if abas_raw else []
     auth.atualizar_usuario(
         uid,
         nome=nome,
-        senha=senha if senha else None,
-        is_admin=is_admin is not None,
-        abas=abas or [],
-        ativo=ativo is not None,
+        senha=senha,
+        is_admin=is_admin,
+        abas=abas,
+        ativo=ativo,
     )
     request.session["usuario_ok"] = "Usuário atualizado."
     return RedirectResponse(url="/usuarios", status_code=303)
