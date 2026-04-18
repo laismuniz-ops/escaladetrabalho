@@ -446,25 +446,40 @@ _DIAS_OBS_PADROES = [
 ]
 
 
-def _dias_disponiveis_obs(obs: str) -> "set | None":
+def _dias_disponiveis_obs(obs: str) -> "dict | None":
     """
-    Lê restrição de dias na obs do entregador.
-    Se encontrar nomes/abreviações de dias, retorna o set de weekdays (0=Seg…6=Dom).
-    Caso contrário retorna None (sem restrição, disponível todos os dias).
+    Lê restrições de disponibilidade na obs do entregador.
+    Retorna dict {"dias_semana": set|None, "paridade": "par"|"impar"|None}
+    ou None se não houver nenhuma restrição.
 
-    Exemplos de obs:
-      'dias: seg ter qui'       → {0, 1, 3}
-      'só segunda e sexta'      → {0, 4}
-      'disponível: ter qua sex' → {1, 2, 4}
+    Exemplos:
+      'dias: seg ter qui'  → dias_semana={0,1,3}, paridade=None
+      'só segunda e sexta' → dias_semana={0,4},   paridade=None
+      'pares'              → dias_semana=None,     paridade="par"
+      'ímpares'            → dias_semana=None,     paridade="impar"
+      'seg pares'          → dias_semana={0},      paridade="par"
     """
     if not obs:
         return None
     s = obs.lower()
-    encontrados: set = set()
+
+    # Paridade do dia do mês
+    paridade = None
+    if _re.search(r'\b[ií]mpares?\b', s):
+        paridade = "impar"
+    elif _re.search(r'\bpares?\b', s):
+        paridade = "par"
+
+    # Dias da semana
+    dias_semana: set = set()
     for padrao, dow in _DIAS_OBS_PADROES:
         if _re.search(padrao, s):
-            encontrados.add(dow)
-    return encontrados if encontrados else None
+            dias_semana.add(dow)
+    dias_semana_rest = dias_semana if dias_semana else None
+
+    if paridade is None and dias_semana_rest is None:
+        return None
+    return {"dias_semana": dias_semana_rest, "paridade": paridade}
 
 def gerar_escala_auto(
     ano: int,
@@ -570,14 +585,19 @@ def gerar_escala_auto(
         _min_r_hoje = min(min_rapido_semana[dow], len(rapidos))
         _min_n_hoje = min(min_normal_semana[dow], len(normais))
 
-        def elegivel(d, _cw=cal_week, _dow=dow):
+        def elegivel(d, _cw=cal_week, _dow=dow, _dnum=dia.day):
             # Limite semanal (Dom–Sáb)
             if semanas[d["id"]].get(_cw, 0) >= 2:
                 return False
-            # Restrição de dias da obs
+            # Restrições da obs
             restricao = dias_disponiveis.get(d["id"])
-            if restricao is not None and _dow not in restricao:
-                return False
+            if restricao is not None:
+                if restricao["dias_semana"] is not None and _dow not in restricao["dias_semana"]:
+                    return False
+                if restricao["paridade"] == "par" and _dnum % 2 != 0:
+                    return False
+                if restricao["paridade"] == "impar" and _dnum % 2 == 0:
+                    return False
             return True
 
         elig_rapidos = [d for d in rapidos if elegivel(d)]
