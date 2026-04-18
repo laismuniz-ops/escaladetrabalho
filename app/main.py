@@ -163,12 +163,19 @@ def home(request: Request, data: Optional[str] = None) -> HTMLResponse:
                         "minimo": min_val,
                         "deficit": min_val - atual,
                     })
-    entregadores_dia = models.escala_entregadores_do_dia(dia.isoformat())
+    entregadores_dia  = models.escala_entregadores_do_dia(dia.isoformat())
+    confirmados_entr  = sum(1 for e in entregadores_dia if e["status"] == "CONFIRMADO")
+    escalados_entr    = sum(1 for e in entregadores_dia if e["status"] == "ESCALADO")
+    min_entr_lista    = models.get_min_entregadores_dia()
+    min_entr_hoje     = min_entr_lista[dow_dia]
+    deficit_entr      = max(0, min_entr_hoje - confirmados_entr) if min_entr_hoje > 0 else 0
     return templates.TemplateResponse(
         "dia.html",
         _ctx(request, data=dia, grupos=grupos, setores=setores_ordenados,
              total=len(escalados), alertas_dia=alertas_dia,
-             entregadores_dia=entregadores_dia),
+             entregadores_dia=entregadores_dia,
+             confirmados_entr=confirmados_entr, escalados_entr=escalados_entr,
+             min_entr_hoje=min_entr_hoje, deficit_entr=deficit_entr),
     )
 
 
@@ -503,11 +510,28 @@ def entregadores_page(request: Request, mes: Optional[str] = None) -> HTMLRespon
     escalas = models.escala_entregadores_mensal(ano, mes_num)
     dias = utils.dias_do_mes(ano, mes_num)
     feriados = models.listar_feriados_ano(ano)
+    min_entr_lista = models.get_min_entregadores_dia()
     return templates.TemplateResponse(
         "entregadores.html",
         _ctx(request, lista=lista, escalas=escalas, dias=dias,
-             ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}", feriados=feriados),
+             ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}",
+             feriados=feriados, min_entr_lista=min_entr_lista),
     )
+
+
+@app.post("/api/entregadores/min-dia")
+async def api_set_min_entregadores_dia(request: Request) -> RedirectResponse:
+    if redir := auth.verificar_permissao(request, "entregadores"):
+        return redir
+    form = await request.form()
+    for i in range(7):
+        try:
+            val = int(form.get(f"min_{i}", 0) or 0)
+        except (ValueError, TypeError):
+            val = 0
+        models.set_min_entregadores_dia(i, val)
+    mes = str(form.get("mes", ""))
+    return RedirectResponse(url=f"/entregadores?mes={mes}" if mes else "/entregadores", status_code=303)
 
 @app.post("/api/entregadores")
 async def criar_entregador_route(request: Request) -> RedirectResponse:

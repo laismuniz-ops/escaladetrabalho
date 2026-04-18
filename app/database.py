@@ -257,6 +257,18 @@ def init_db() -> None:
         _migrate_entregadores_if_needed(cur)
         _seed_entregadores_if_empty(cur)
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS min_entregadores_dia (
+                dia_semana INTEGER PRIMARY KEY,
+                minimo     INTEGER NOT NULL DEFAULT 0
+            );
+        """)
+        # Garante as 7 linhas (uma por dia da semana)
+        for _d in range(7):
+            cur.execute(
+                "INSERT OR IGNORE INTO min_entregadores_dia (dia_semana, minimo) VALUES (?, 0)",
+                (_d,),
+            )
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS feriados (
                 data TEXT PRIMARY KEY,
                 nome TEXT NOT NULL

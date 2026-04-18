@@ -413,6 +413,25 @@ def escala_entregadores_mensal(ano: int, mes: int) -> dict[int, dict[str, str]]:
     return resultado
 
 
+# ---------- Mínimo de entregadores por dia da semana ----------
+
+def get_min_entregadores_dia() -> list:
+    """Retorna lista de 7 ints [min_seg, min_ter, ..., min_dom] (índice = weekday())."""
+    with db_cursor() as cur:
+        cur.execute("SELECT dia_semana, minimo FROM min_entregadores_dia")
+        rows = {r["dia_semana"]: r["minimo"] for r in cur.fetchall()}
+    return [rows.get(i, 0) for i in range(7)]
+
+
+def set_min_entregadores_dia(dia_semana: int, minimo: int) -> None:
+    with db_cursor() as cur:
+        cur.execute(
+            "INSERT INTO min_entregadores_dia (dia_semana, minimo) VALUES (?, ?) "
+            "ON CONFLICT(dia_semana) DO UPDATE SET minimo = excluded.minimo",
+            (dia_semana, max(0, minimo)),
+        )
+
+
 # ---------- Feriados ----------
 
 def listar_feriados_ano(ano: int) -> dict:

@@ -16,7 +16,7 @@
         </form>
     </div>
 
-    {% if alertas_dia %}
+    {% if alertas_dia or deficit_entr > 0 %}
     <div class="flex flex-wrap gap-2">
         {% for a in alertas_dia %}
         <div class="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm">
@@ -29,6 +29,17 @@
             </span>
         </div>
         {% endfor %}
+        {% if deficit_entr > 0 %}
+        <div class="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm">
+            <span class="text-red-500 font-black text-base leading-none">!</span>
+            <span>
+                <span class="font-bold">Entregadores</span>
+                — confirmados:
+                <span class="font-black text-red-600">{{ confirmados_entr }}/{{ min_entr_hoje }}</span>
+                <span class="text-red-400 text-xs">(falta {{ deficit_entr }})</span>
+            </span>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -83,7 +94,18 @@
 
     {% if entregadores_dia %}
     <div class="gs-card overflow-hidden">
-        <div class="setor-header text-sm font-black tracking-[0.2em]">Entregadores</div>
+        <div class="setor-header text-sm font-black tracking-[0.2em] flex items-center justify-between pr-4">
+            <span>Entregadores</span>
+            <div class="flex items-center gap-3 font-normal text-xs tracking-normal">
+                <span class="entr-ESCALADO px-2 py-0.5 rounded font-bold">{{ escalados_entr }} E</span>
+                <span class="entr-CONFIRMADO px-2 py-0.5 rounded font-bold">{{ confirmados_entr }} C</span>
+                {% if min_entr_hoje > 0 %}
+                <span class="{% if deficit_entr > 0 %}text-red-300{% else %}text-green-300{% endif %} font-semibold">
+                    mín {{ min_entr_hoje }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
         <div class="px-5 py-4">
             <ul class="space-y-2">
             {% for e in entregadores_dia %}

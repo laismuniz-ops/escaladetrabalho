@@ -84,6 +84,28 @@
     </table>
     </div>
 
+    <!-- Mínimo de confirmados por dia -->
+    <div class="gs-card px-4 py-3">
+        <p class="gs-section-title mb-3">Mínimo de confirmados por dia da semana</p>
+        <form method="post" action="/api/entregadores/min-dia" class="flex items-end gap-4 flex-wrap">
+            <input type="hidden" name="mes" value="{{ mes_str }}">
+            <div class="grid grid-cols-7 gap-2">
+                {% set dias_nomes_min = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+                {% for i in range(7) %}
+                <div class="text-center">
+                    <div class="gs-section-title mb-1">{{ dias_nomes_min[i] }}</div>
+                    <input type="number" name="min_{{ i }}"
+                           value="{{ min_entr_lista[i] }}" min="0"
+                           class="gs-input text-center px-1 w-full"
+                           style="padding-left:4px;padding-right:4px;">
+                </div>
+                {% endfor %}
+            </div>
+            <button type="submit" class="gs-btn gs-btn-primary text-xs py-1.5 px-4 whitespace-nowrap">Salvar mínimos</button>
+        </form>
+        <p class="text-xs text-brand-grey mt-2">O alerta de déficit na aba <strong>Equipe do dia</strong> aparece quando o número de <strong>CONFIRMADOS</strong> for menor que o mínimo do dia.</p>
+    </div>
+
     <!-- Gerenciar entregadores -->
     <div class="gs-card p-5">
         <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
@@ -268,7 +290,8 @@
                         <div class="gs-section-title mb-1 {% if i == 6 %}text-red-600{% endif %}">{{ dias_nomes[i] }}</div>
                         <input type="number" id="g-total-{{ i }}" value="4" min="0"
                                class="gs-input text-center px-1 {% if i == 6 %}border-red-300{% endif %}"
-                               style="padding-left:4px;padding-right:4px;">
+                               style="padding-left:4px;padding-right:4px;"
+                               onchange="salvarConfigGeracao()">
                     </div>
                     {% endfor %}
                 </div>
@@ -283,7 +306,8 @@
                     <div class="text-center">
                         <div class="gs-section-title mb-1 {% if i == 6 %}text-brand-grey{% endif %}">{{ dias_nomes2[i] }}</div>
                         <input type="number" id="g-min-r-{{ i }}" value="0" min="0"
-                               class="gs-input text-center px-1" style="padding-left:4px;padding-right:4px;">
+                               class="gs-input text-center px-1" style="padding-left:4px;padding-right:4px;"
+                               onchange="salvarConfigGeracao()">
                     </div>
                     {% endfor %}
                 </div>
@@ -297,7 +321,8 @@
                     <div class="text-center">
                         <div class="gs-section-title mb-1 {% if i == 6 %}text-brand-grey{% endif %}">{{ dias_nomes2[i] }}</div>
                         <input type="number" id="g-min-n-{{ i }}" value="0" min="0"
-                               class="gs-input text-center px-1" style="padding-left:4px;padding-right:4px;">
+                               class="gs-input text-center px-1" style="padding-left:4px;padding-right:4px;"
+                               onchange="salvarConfigGeracao()">
                     </div>
                     {% endfor %}
                 </div>
@@ -357,9 +382,15 @@
             </div>
         </div>
 
-        <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
-            <button onclick="fecharModalGerar()" class="gs-btn gs-btn-ghost">Fechar</button>
-            <button onclick="executarGerar()" id="btn-gerar" class="gs-btn gs-btn-primary">⚡ Gerar</button>
+        <div class="flex items-center justify-between pt-2 border-t border-brand-border gap-3 flex-wrap">
+            <div class="flex items-center gap-2">
+                <button onclick="salvarConfigGeracao(true)" class="gs-btn gs-btn-ghost text-xs py-1.5 px-3">💾 Salvar configuração</button>
+                <span id="g-salvo-ok" class="hidden text-xs text-green-600 font-semibold">✓ Salvo!</span>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="fecharModalGerar()" class="gs-btn gs-btn-ghost">Fechar</button>
+                <button onclick="executarGerar()" id="btn-gerar" class="gs-btn gs-btn-primary">⚡ Gerar</button>
+            </div>
         </div>
     </div>
     </div>
@@ -564,11 +595,19 @@ function limparTodos()       { limparTodosEm('g-calendario','g-dias-selecionados
 function diasSelecionados()  { return diasSelecionadosEm('g-calendario'); }
 
 // ─── Persistência de configuração (localStorage) ────────────────────────────────
-function salvarConfigGeracao() {
+function salvarConfigGeracao(mostrarFeedback = false) {
     for (let i = 0; i < 7; i++) {
         localStorage.setItem(`gs_entr_total_${i}`, document.getElementById(`g-total-${i}`).value);
         localStorage.setItem(`gs_entr_min_r_${i}`, document.getElementById(`g-min-r-${i}`).value);
         localStorage.setItem(`gs_entr_min_n_${i}`, document.getElementById(`g-min-n-${i}`).value);
+    }
+    if (mostrarFeedback) {
+        const ok = document.getElementById('g-salvo-ok');
+        if (ok) {
+            ok.classList.remove('hidden');
+            clearTimeout(ok._t);
+            ok._t = setTimeout(() => ok.classList.add('hidden'), 2000);
+        }
     }
 }
 function carregarConfigGeracao() {
