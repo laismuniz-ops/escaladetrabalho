@@ -325,8 +325,10 @@
                 <p class="gs-section-title mb-1">Regras aplicadas</p>
                 <p class="text-xs text-brand-grey">✔ Máx. <strong>2 dias por semana</strong> por entregador — semana: <strong>Domingo a Sábado</strong></p>
                 <p class="text-xs text-brand-grey">✔ Domingo é o <strong>início</strong> da semana e conta para o limite</p>
+                <p class="text-xs text-brand-grey">✔ Semanas que <strong>cruzam meses</strong> são respeitadas — dias do mês anterior na mesma semana já contam para o limite de 2x</p>
                 <p class="text-xs text-brand-grey">✔ Distribuição equilibrada — quem trabalhou menos vai primeiro</p>
                 <p class="text-xs text-brand-grey">✔ Mínimos de Rápidos e Normais respeitados por dia</p>
+                <p class="text-xs text-brand-grey">✔ <strong>Dias disponíveis por obs:</strong> escreva no campo Obs do entregador os dias que ele pode trabalhar — ex: <em>"dias: seg ter qui"</em> ou <em>"só segunda e sexta"</em>. Se não houver restrição no obs, o entregador fica disponível todos os dias.</p>
             </div>
         </div>
 
@@ -641,8 +643,11 @@ async function executarGerar() {
             return;
         }
 
-        document.getElementById('g-resumo').textContent =
-            `✓ ${data.dias_gerados} dia(s) gerado(s) com sucesso.`;
+        let resumoTxt = `✓ ${data.dias_gerados} dia(s) gerado(s) com sucesso.`;
+        if (data.dias_pulados > 0) {
+            resumoTxt += ` · ${data.dias_pulados} dia(s) pulado(s) — já tinham escala. Marque "Sobrescrever" para regenerar.`;
+        }
+        document.getElementById('g-resumo').textContent = resumoTxt;
 
         const avisos = document.getElementById('g-avisos');
         if (data.avisos && data.avisos.length) {

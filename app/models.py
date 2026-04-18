@@ -423,6 +423,48 @@ def remover_feriado(data_iso: str) -> None:
 # ---------- Geração automática de escala de entregadores ----------
 
 import calendar as _cal
+import re as _re
+
+# Padrões para detectar dias disponíveis na obs do entregador
+# Formato sugerido na obs: "dias: seg ter qui"  ou  "só segunda e sexta"
+_DIAS_OBS_PADROES = [
+    (r"\bsegunda(?:-feira)?\b", 0),
+    (r"\bter[cç]a(?:-feira)?\b", 1),
+    (r"\bquarta(?:-feira)?\b", 2),
+    (r"\bquinta(?:-feira)?\b", 3),
+    (r"\bsexta(?:-feira)?\b", 4),
+    (r"\bs[áa]bado\b", 5),
+    (r"\bdomingo\b", 6),
+    # Abreviações (usadas em listas, ex: "dias: seg ter qui")
+    (r"\bseg\b", 0),
+    (r"\bter\b", 1),
+    (r"\bqua\b", 2),
+    (r"\bqui\b", 3),
+    (r"\bsex\b", 4),
+    (r"\bs[áa]b\b", 5),
+    (r"\bdom\b", 6),
+]
+
+
+def _dias_disponiveis_obs(obs: str) -> "set | None":
+    """
+    Lê restrição de dias na obs do entregador.
+    Se encontrar nomes/abreviações de dias, retorna o set de weekdays (0=Seg…6=Dom).
+    Caso contrário retorna None (sem restrição, disponível todos os dias).
+
+    Exemplos de obs:
+      'dias: seg ter qui'       → {0, 1, 3}
+      'só segunda e sexta'      → {0, 4}
+      'disponível: ter qua sex' → {1, 2, 4}
+    """
+    if not obs:
+        return None
+    s = obs.lower()
+    encontrados: set = set()
+    for padrao, dow in _DIAS_OBS_PADROES:
+        if _re.search(padrao, s):
+            encontrados.add(dow)
+    return encontrados if encontrados else None
 
 def gerar_escala_auto(
     ano: int,
@@ -475,6 +517,12 @@ def gerar_escala_auto(
         for turnos in existente.values():
             dias_existentes.update(turnos.keys())
 
+    # ── Dias disponíveis por entregador (lidos da obs)
+    dias_disponiveis: dict = {}
+    for d in drivers:
+        restricao = _dias_disponiveis_obs(d.get("obs") or "")
+        dias_disponiveis[d["id"]] = restricao  # None = sem restrição
+
     contagem = {d["id"]: 0 for d in drivers}
     semanas: dict = {d["id"]: {} for d in drivers}
 
@@ -508,10 +556,13 @@ def gerar_escala_auto(
                     semanas[eid][ck] = semanas[eid].get(ck, 0) + 1
 
     dias_gerados = 0
+    dias_pulados = 0        # dias que já tinham escala e foram ignorados (sobrescrever=False)
+    dias_vazios = 0         # dias gerados mas com 0 entregadores disponíveis
 
     for dia in dias_trabalho:
         iso = dia.isoformat()
         if not sobrescrever and iso in dias_existentes:
+            dias_pulados += 1
             continue
 
         cal_week = _semana_chave(dia)
@@ -519,8 +570,15 @@ def gerar_escala_auto(
         _min_r_hoje = min(min_rapido_semana[dow], len(rapidos))
         _min_n_hoje = min(min_normal_semana[dow], len(normais))
 
-        def elegivel(d, _cw=cal_week):
-            return semanas[d["id"]].get(_cw, 0) < 2
+        def elegivel(d, _cw=cal_week, _dow=dow):
+            # Limite semanal (Dom–Sáb)
+            if semanas[d["id"]].get(_cw, 0) >= 2:
+                return False
+            # Restrição de dias da obs
+            restricao = dias_disponiveis.get(d["id"])
+            if restricao is not None and _dow not in restricao:
+                return False
+            return True
 
         elig_rapidos = [d for d in rapidos if elegivel(d)]
         elig_normais  = [d for d in normais  if elegivel(d)]
@@ -549,6 +607,9 @@ def gerar_escala_auto(
             for d in pool[:restante]:
                 selecionados.add(d["id"])
 
+        if not selecionados:
+            dias_vazios += 1
+
         # Salva
         for d in drivers:
             if d["id"] in selecionados:
@@ -558,8 +619,15 @@ def gerar_escala_auto(
 
         dias_gerados += 1
 
+    if dias_vazios > 0:
+        avisos.append(
+            f"{dias_vazios} dia(s) gerado(s) sem nenhum entregador disponível "
+            "(limite semanal atingido ou restrição de dias na obs)."
+        )
+
     return {
         "dias_gerados": dias_gerados,
+        "dias_pulados": dias_pulados,
         "avisos": avisos,
         "contagem": [
             {
