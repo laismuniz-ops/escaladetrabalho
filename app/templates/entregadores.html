@@ -75,7 +75,19 @@
 
     <!-- Gerenciar entregadores -->
     <div class="gs-card p-5">
-        <p class="gs-section-title mb-3">Gerenciar entregadores</p>
+        <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+            <p class="gs-section-title">Gerenciar entregadores</p>
+            {% set ativos   = lista | selectattr('ativo') | list %}
+            {% set rapidos  = ativos | selectattr('cor', 'equalto', 'RAPIDO') | list %}
+            {% set normais  = ativos | selectattr('cor', 'equalto', 'NORMAL') | list %}
+            {% set sem_cor  = ativos | rejectattr('cor') | list %}
+            <div class="flex items-center gap-3 text-xs font-bold flex-wrap">
+                <span class="text-brand-grey">{{ ativos | length }} ativos</span>
+                <span class="entr-nome-rapido">{{ rapidos | length }} Rápido(s)</span>
+                <span class="entr-nome-normal">{{ normais | length }} Normal(is)</span>
+                {% if sem_cor %}<span class="text-brand-grey">{{ sem_cor | length }} sem classificação</span>{% endif %}
+            </div>
+        </div>
         <div class="flex gap-2 mb-4">
             <form method="post" action="/api/entregadores" class="flex gap-2 flex-1">
                 <input name="nome" placeholder="Nome do entregador" required class="gs-input flex-1">
