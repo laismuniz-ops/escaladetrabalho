@@ -88,7 +88,9 @@
       "Bash(curl -s http://localhost:8000/grade)",
       "Bash(python3 -c \"from app.database import init_db; init_db\\(\\); print\\('DB ok'\\)\")",
       "Bash(python3 -c ':*)",
-      "Bash(pkill -f \"uvicorn app.main\")"
+      "Bash(pkill -f \"uvicorn app.main\")",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_in_Chrome__navigate"
     ]
   }
 }

@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" width="200" height="48">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 44" width="260" height="44">
   <text
-    x="100" y="36"
+    x="130" y="33"
     font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
     font-weight="900"
-    font-size="38"
-    letter-spacing="6"
+    font-size="30"
+    letter-spacing="8"
     text-anchor="middle"
     fill="#ffffff">SINGULAR</text>
 </svg>
