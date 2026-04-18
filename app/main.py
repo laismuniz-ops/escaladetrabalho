@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional, List
@@ -27,6 +28,8 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=60 * 60 * 1
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+_BUILD_VER = str(int(time.time()))  # cache-buster: muda a cada restart
+
 templates.env.globals.update(
     {
         "label_turno": utils.label_turno,
@@ -34,6 +37,7 @@ templates.env.globals.update(
         "dia_semana_curto": utils.dia_semana_curto,
         "nome_mes": utils.nome_mes,
         "ABAS_DISPONIVEIS": auth.ABAS_DISPONIVEIS,
+        "build_ver": _BUILD_VER,
     }
 )
 
