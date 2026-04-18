@@ -392,3 +392,107 @@ def escala_entregadores_mensal(ano: int, mes: int) -> dict[int, dict[str, str]]:
         for row in cur.fetchall():
             resultado.setdefault(row["entregador_id"], {})[row["data"]] = row["status"]
     return resultado
+
+
+# ---------- Geração automática de escala de entregadores ----------
+
+import calendar as _cal
+
+def gerar_escala_auto(
+    ano: int,
+    mes: int,
+    total_por_dia: int,
+    min_rapido: int,
+    min_normal: int,
+    dias_semana: list,          # lista de ints 0=Seg … 6=Dom
+    sobrescrever: bool = False,
+) -> dict:
+    """
+    Gera escala automática para o mês.
+    - Distribui os entregadores de forma equilibrada (quem trabalhou menos vai primeiro)
+    - Garante mínimos de Rápidos e Normais por dia
+    - Retorna resumo com contagem por entregador e avisos
+    """
+    from datetime import date as _date
+
+    drivers = listar_entregadores(ativos_apenas=True)
+    if not drivers:
+        return {"erro": "Nenhum entregador ativo.", "dias_gerados": 0, "contagem": [], "avisos": []}
+
+    rapidos = [d for d in drivers if d["cor"] == "RAPIDO"]
+    normais  = [d for d in drivers if d["cor"] == "NORMAL"]
+
+    avisos = []
+    _min_r = min(min_rapido, len(rapidos))
+    _min_n = min(min_normal, len(normais))
+    if _min_r < min_rapido:
+        avisos.append(f"Apenas {len(rapidos)} Rápido(s) disponível(is); usando todos.")
+    if _min_n < min_normal:
+        avisos.append(f"Apenas {len(normais)} Normal(is) disponível(is); usando todos.")
+
+    # Dias do mês que são dias de trabalho
+    num_dias = _cal.monthrange(ano, mes)[1]
+    dias_trabalho = [
+        _date(ano, mes, d)
+        for d in range(1, num_dias + 1)
+        if _date(ano, mes, d).weekday() in dias_semana
+    ]
+
+    # Se não sobrescrever, descobre dias que já têm pelo menos 1 entregador escalado
+    dias_existentes: set = set()
+    if not sobrescrever:
+        existente = escala_entregadores_mensal(ano, mes)
+        for turnos in existente.values():
+            dias_existentes.update(turnos.keys())
+
+    contagem = {d["id"]: 0 for d in drivers}
+    dias_gerados = 0
+
+    for dia in dias_trabalho:
+        iso = dia.isoformat()
+        if not sobrescrever and iso in dias_existentes:
+            continue  # já tem escala neste dia, pula
+
+        selecionados: set = set()
+
+        # 1. Rápidos com menos dias primeiro
+        r_sorted = sorted(rapidos, key=lambda d: (contagem[d["id"]], d["ordem"]))
+        for d in r_sorted[:_min_r]:
+            selecionados.add(d["id"])
+
+        # 2. Normais com menos dias primeiro
+        n_sorted = sorted(normais, key=lambda d: (contagem[d["id"]], d["ordem"]))
+        for d in n_sorted[:_min_n]:
+            selecionados.add(d["id"])
+
+        # 3. Preenche restante com qualquer driver (menos dias primeiro)
+        restante = max(0, total_por_dia - len(selecionados))
+        if restante:
+            pool = sorted(
+                [d for d in drivers if d["id"] not in selecionados],
+                key=lambda d: (contagem[d["id"]], d["ordem"]),
+            )
+            for d in pool[:restante]:
+                selecionados.add(d["id"])
+
+        # Salva no banco
+        for d in drivers:
+            if d["id"] in selecionados:
+                set_status_entregador(d["id"], iso, "ESCALADO")
+                contagem[d["id"]] += 1
+
+        dias_gerados += 1
+
+    return {
+        "dias_gerados": dias_gerados,
+        "avisos": avisos,
+        "contagem": [
+            {
+                "nome": d["nome"],
+                "cor": d["cor"],
+                "obs": d.get("obs") or "",
+                "dias": contagem[d["id"]],
+            }
+            for d in sorted(drivers, key=lambda d: -contagem[d["id"]])
+        ],
+    }

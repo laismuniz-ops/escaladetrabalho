@@ -568,6 +568,23 @@ async def api_set_cor_entregador(request: Request, eid: int) -> dict:
     return {"ok": True, "cor": cor}
 
 
+@app.post("/api/entregadores/gerar-escala")
+async def api_gerar_escala_entregadores(request: Request) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    mes_str = str(form.get("mes", ""))
+    ano, mes_num = _parse_mes(mes_str if mes_str else None)
+    total      = int(form.get("total_por_dia", 4))
+    min_r      = int(form.get("min_rapido", 0))
+    min_n      = int(form.get("min_normal", 0))
+    sobrescrever = form.get("sobrescrever", "") == "1"
+    dias_raw   = form.getlist("dias_semana")
+    dias_semana = [int(d) for d in dias_raw] if dias_raw else list(range(7))
+    resultado  = models.gerar_escala_auto(ano, mes_num, total, min_r, min_n, dias_semana, sobrescrever)
+    return resultado
+
+
 # ---------- PDF ----------
 
 @app.get("/pdf/{tipo}")

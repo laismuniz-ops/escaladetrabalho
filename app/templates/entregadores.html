@@ -9,11 +9,16 @@
             <p class="gs-section-title">Escala de</p>
             <h1 class="text-2xl font-bold tracking-wide uppercase mt-1">Entregadores — {{ nome_mes(mes) }} / {{ ano }}</h1>
         </div>
+        <!-- substituir o bloco de botões -->
         <div class="flex items-center gap-3 flex-wrap">
             <form method="get" class="flex items-center gap-2">
                 <label class="gs-section-title">Mês</label>
                 <input type="month" name="mes" value="{{ mes_str }}" class="gs-input w-auto" onchange="this.form.submit()">
             </form>
+            <button type="button" onclick="document.getElementById('modal-gerar').classList.remove('hidden')"
+                    class="gs-btn gs-btn-primary whitespace-nowrap">
+                ⚡ Gerar automático
+            </button>
         </div>
     </div>
 
@@ -162,6 +167,88 @@
         {% endif %}
     </div>
 
+    <!-- Modal Gerar Escala Automática -->
+    <div id="modal-gerar" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-5">
+
+        <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold uppercase tracking-wide">⚡ Gerar Escala Automática</h2>
+            <button onclick="document.getElementById('modal-gerar').classList.add('hidden')"
+                    class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
+        </div>
+
+        <!-- Info de classificação -->
+        <div id="info-classif" class="text-xs text-brand-grey"></div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <!-- Mês -->
+            <div class="col-span-2">
+                <label class="gs-section-title block mb-1">Mês</label>
+                <input type="month" id="g-mes" value="{{ mes_str }}" class="gs-input">
+            </div>
+
+            <!-- Total por dia -->
+            <div>
+                <label class="gs-section-title block mb-1">Entregadores por dia</label>
+                <input type="number" id="g-total" value="4" min="1" class="gs-input">
+            </div>
+
+            <!-- Dias da semana -->
+            <div class="col-span-2">
+                <label class="gs-section-title block mb-2">Dias da semana</label>
+                <div class="flex gap-2 flex-wrap">
+                    {% set dias_nomes = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+                    {% for i in range(7) %}
+                    <label class="flex items-center gap-1 text-xs font-semibold cursor-pointer">
+                        <input type="checkbox" class="g-dia-check gs-check" value="{{ i }}" checked>
+                        {{ dias_nomes[i] }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Min Rápidos -->
+            <div>
+                <label class="gs-section-title block mb-1">Mín. <span class="entr-nome-rapido">Rápidos</span> / dia</label>
+                <input type="number" id="g-min-r" value="0" min="0" class="gs-input">
+            </div>
+
+            <!-- Min Normais -->
+            <div>
+                <label class="gs-section-title block mb-1">Mín. <span class="entr-nome-normal">Normais</span> / dia</label>
+                <input type="number" id="g-min-n" value="0" min="0" class="gs-input">
+            </div>
+
+            <!-- Sobrescrever -->
+            <div class="col-span-2 flex items-center gap-2">
+                <input type="checkbox" id="g-sobrescrever" class="gs-check" value="1">
+                <label for="g-sobrescrever" class="text-xs font-semibold cursor-pointer">
+                    Sobrescrever escala já existente no mês
+                </label>
+            </div>
+        </div>
+
+        <!-- Resultado -->
+        <div id="g-resultado" class="hidden">
+            <div class="border-t border-brand-border pt-4 space-y-3">
+                <p id="g-resumo" class="text-sm font-bold"></p>
+                <div id="g-avisos" class="hidden gs-alert-erro text-xs"></div>
+                <table class="gs-table text-xs">
+                    <thead><tr><th>Entregador</th><th>Tipo</th><th>Obs</th><th class="text-right">Dias</th></tr></thead>
+                    <tbody id="g-tabela"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
+            <button onclick="document.getElementById('modal-gerar').classList.add('hidden')"
+                    class="gs-btn gs-btn-ghost">Fechar</button>
+            <button onclick="executarGerar()" id="btn-gerar"
+                    class="gs-btn gs-btn-primary">⚡ Gerar</button>
+        </div>
+    </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -294,6 +381,81 @@ async function setCor(id, cor, btn) {
         nomeCell.classList.remove('entr-nome-rapido', 'entr-nome-normal');
         if (cor === 'RAPIDO') nomeCell.classList.add('entr-nome-rapido');
         else if (cor === 'NORMAL') nomeCell.classList.add('entr-nome-normal');
+    }
+}
+
+// ---- Gerar escala automática ----
+// Mostra quantos Rápidos/Normais existem
+(function() {
+    const lista = {{ lista | tojson }};
+    const rapidos = lista.filter(e => e.cor === 'RAPIDO' && e.ativo).length;
+    const normais  = lista.filter(e => e.cor === 'NORMAL'  && e.ativo).length;
+    const outros   = lista.filter(e => !e.cor && e.ativo).length;
+    const el = document.getElementById('info-classif');
+    if (el) el.innerHTML =
+        `<span class="entr-nome-rapido font-bold">${rapidos} Rápido(s)</span> &nbsp;·&nbsp; `+
+        `<span class="entr-nome-normal font-bold">${normais} Normal(is)</span> &nbsp;·&nbsp; `+
+        `${outros} sem classificação &nbsp;·&nbsp; ${lista.filter(e=>e.ativo).length} ativos no total`;
+})();
+
+async function executarGerar() {
+    const btn = document.getElementById('btn-gerar');
+    btn.disabled = true;
+    btn.textContent = 'Gerando…';
+    try {
+        const fd = new FormData();
+        fd.append('mes', document.getElementById('g-mes').value);
+        fd.append('total_por_dia', document.getElementById('g-total').value);
+        fd.append('min_rapido', document.getElementById('g-min-r').value);
+        fd.append('min_normal', document.getElementById('g-min-n').value);
+        if (document.getElementById('g-sobrescrever').checked) fd.append('sobrescrever', '1');
+        document.querySelectorAll('.g-dia-check:checked').forEach(c => fd.append('dias_semana', c.value));
+
+        const r = await fetch('/api/entregadores/gerar-escala', { method: 'POST', body: fd });
+        const data = await r.json();
+
+        const res = document.getElementById('g-resultado');
+        res.classList.remove('hidden');
+
+        if (data.erro) {
+            document.getElementById('g-resumo').textContent = '⚠ ' + data.erro;
+            document.getElementById('g-tabela').innerHTML = '';
+            return;
+        }
+
+        document.getElementById('g-resumo').textContent =
+            `✓ ${data.dias_gerados} dia(s) gerado(s) com sucesso.`;
+
+        const avisos = document.getElementById('g-avisos');
+        if (data.avisos && data.avisos.length) {
+            avisos.classList.remove('hidden');
+            avisos.innerHTML = data.avisos.map(a => `⚠ ${a}`).join('<br>');
+        } else {
+            avisos.classList.add('hidden');
+        }
+
+        const tabela = document.getElementById('g-tabela');
+        tabela.innerHTML = data.contagem.map(d => {
+            const corClass = d.cor === 'RAPIDO' ? 'entr-nome-rapido' :
+                             d.cor === 'NORMAL'  ? 'entr-nome-normal'  : '';
+            const corLabel = d.cor === 'RAPIDO' ? 'Rápido' :
+                             d.cor === 'NORMAL'  ? 'Normal'  : '—';
+            return `<tr>
+                <td class="font-semibold ${corClass}">${d.nome}</td>
+                <td class="${corClass}">${corLabel}</td>
+                <td class="text-brand-grey text-[0.72rem]">${d.obs || ''}</td>
+                <td class="text-right font-bold">${d.dias}</td>
+            </tr>`;
+        }).join('');
+
+        // Recarrega a página após 1.5s para mostrar a grade atualizada
+        setTimeout(() => location.reload(), 1500);
+
+    } catch(e) {
+        alert('Erro ao gerar escala.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Gerar';
     }
 }
 </script>
