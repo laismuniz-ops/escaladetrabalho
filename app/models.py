@@ -427,7 +427,7 @@ import calendar as _cal
 def gerar_escala_auto(
     ano: int,
     mes: int,
-    total_por_dia_semana: list,       # 7 ints [dom, seg, ter, qua, qui, sex, sab] → índice = weekday() com dom=6
+    total_por_dia_semana: list,       # 7 ints, índice = weekday() 0=Seg…6=Dom
     min_rapido_semana: list,           # 7 ints, mesmo índice
     min_normal_semana: list,           # 7 ints, mesmo índice
     dias_especificos: list = None,
@@ -438,10 +438,11 @@ def gerar_escala_auto(
     - total_por_dia_semana: 7 valores, um por dia da semana (0=Seg … 6=Dom)
     - Distribui de forma equilibrada (quem trabalhou menos vai primeiro)
     - Garante mínimos de Rápidos e Normais por dia
-    - Respeita limite de 2 dias por semana por entregador
+    - Respeita limite de 2 dias por semana Dom–Sáb por entregador
+      (inclui dias do mês anterior que pertencem à 1ª semana parcial)
     - dias_especificos: lista de ISO strings; None = todos os dias do mês
     """
-    from datetime import date as _date
+    from datetime import date as _date, timedelta as _td
 
     drivers = listar_entregadores(ativos_apenas=True)
     if not drivers:
@@ -456,6 +457,10 @@ def gerar_escala_auto(
     if max(min_normal_semana) > len(normais):
         avisos.append(f"Apenas {len(normais)} Normal(is) disponível(is).")
 
+    def _semana_chave(d: _date) -> str:
+        """Retorna o ISO da data do domingo que inicia a semana Dom–Sáb do dia d."""
+        return (d - _td(days=(d.weekday() + 1) % 7)).isoformat()
+
     # Dias a trabalhar
     if dias_especificos:
         dias_trabalho = sorted([_date.fromisoformat(d) for d in dias_especificos])
@@ -463,16 +468,45 @@ def gerar_escala_auto(
         num_dias = _cal.monthrange(ano, mes)[1]
         dias_trabalho = [_date(ano, mes, d) for d in range(1, num_dias + 1)]
 
-    # Se não sobrescrever, descobre dias que já têm escala
+    # Escala já existente no mês
+    existente = escala_entregadores_mensal(ano, mes)
     dias_existentes: set = set()
     if not sobrescrever:
-        existente = escala_entregadores_mensal(ano, mes)
         for turnos in existente.values():
             dias_existentes.update(turnos.keys())
 
     contagem = {d["id"]: 0 for d in drivers}
-    # semanas: {driver_id: {(iso_year, iso_week): count}}
     semanas: dict = {d["id"]: {} for d in drivers}
+
+    # ── Pré-popula semanas com escala já existente no mês (respeita limite ao completar)
+    if not sobrescrever:
+        for eid, dias_map in existente.items():
+            if eid not in semanas:
+                continue
+            for iso_dia, status in dias_map.items():
+                if status in ("ESCALADO", "CONFIRMADO"):
+                    ck = _semana_chave(_date.fromisoformat(iso_dia))
+                    semanas[eid][ck] = semanas[eid].get(ck, 0) + 1
+
+    # ── Pré-popula semanas com dias do mês anterior que pertencem à 1ª semana parcial
+    #    (ex.: se o mês começa numa Quarta, os dias Domingo–Terça do mês anterior
+    #     pertencem à mesma semana Dom–Sáb e devem contar para o limite de 2x)
+    primeiro_dia_mes = _date(ano, mes, 1)
+    inicio_semana_1 = _date.fromisoformat(_semana_chave(primeiro_dia_mes))
+    if inicio_semana_1 < primeiro_dia_mes:
+        data_ini_prev = inicio_semana_1.isoformat()
+        data_fim_prev = (primeiro_dia_mes - _td(days=1)).isoformat()
+        with db_cursor() as cur:
+            cur.execute("""
+                SELECT entregador_id FROM escala_entregadores
+                WHERE data >= ? AND data <= ? AND status IN ('ESCALADO', 'CONFIRMADO')
+            """, (data_ini_prev, data_fim_prev))
+            for row in cur.fetchall():
+                eid = row["entregador_id"]
+                if eid in semanas:
+                    ck = inicio_semana_1.isoformat()
+                    semanas[eid][ck] = semanas[eid].get(ck, 0) + 1
+
     dias_gerados = 0
 
     for dia in dias_trabalho:
@@ -480,18 +514,13 @@ def gerar_escala_auto(
         if not sobrescrever and iso in dias_existentes:
             continue
 
-        # Semana Dom–Sáb: domingo é o 1º dia; chave = data do domingo que inicia a semana
-        from datetime import timedelta as _td
-        dias_desde_dom = (dia.weekday() + 1) % 7   # dom=0, seg=1, …, sab=6
-        semana_inicio = dia - _td(days=dias_desde_dom)
-        cal_week = semana_inicio.isoformat()
-
+        cal_week = _semana_chave(dia)
         dow = dia.weekday()
         _min_r_hoje = min(min_rapido_semana[dow], len(rapidos))
         _min_n_hoje = min(min_normal_semana[dow], len(normais))
 
-        def elegivel(d):
-            return semanas[d["id"]].get(cal_week, 0) < 2
+        def elegivel(d, _cw=cal_week):
+            return semanas[d["id"]].get(_cw, 0) < 2
 
         elig_rapidos = [d for d in rapidos if elegivel(d)]
         elig_normais  = [d for d in normais  if elegivel(d)]

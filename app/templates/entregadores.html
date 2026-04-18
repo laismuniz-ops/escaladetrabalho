@@ -547,6 +547,25 @@ function selecionarTodos()   { selecionarTodosEm('g-calendario','g-dias-selecion
 function limparTodos()       { limparTodosEm('g-calendario','g-dias-selecionados'); }
 function diasSelecionados()  { return diasSelecionadosEm('g-calendario'); }
 
+// ─── Persistência de configuração (localStorage) ────────────────────────────────
+function salvarConfigGeracao() {
+    for (let i = 0; i < 7; i++) {
+        localStorage.setItem(`gs_entr_total_${i}`, document.getElementById(`g-total-${i}`).value);
+        localStorage.setItem(`gs_entr_min_r_${i}`, document.getElementById(`g-min-r-${i}`).value);
+        localStorage.setItem(`gs_entr_min_n_${i}`, document.getElementById(`g-min-n-${i}`).value);
+    }
+}
+function carregarConfigGeracao() {
+    for (let i = 0; i < 7; i++) {
+        const total = localStorage.getItem(`gs_entr_total_${i}`);
+        const minR  = localStorage.getItem(`gs_entr_min_r_${i}`);
+        const minN  = localStorage.getItem(`gs_entr_min_n_${i}`);
+        if (total !== null) document.getElementById(`g-total-${i}`).value = total;
+        if (minR  !== null) document.getElementById(`g-min-r-${i}`).value = minR;
+        if (minN  !== null) document.getElementById(`g-min-n-${i}`).value = minN;
+    }
+}
+
 // ─── Modal Gerar ────────────────────────────────────────────────────────────────
 function abrirModalGerar() {
     document.getElementById('modal-gerar').classList.remove('hidden');
@@ -559,6 +578,7 @@ function abrirModalGerar() {
         `<span class="entr-nome-normal font-bold">${normais} Normal(is)</span> &nbsp;·&nbsp; ` +
         `${outros} sem classificação &nbsp;·&nbsp; ` +
         `<strong>${_listaEntr.filter(e=>e.ativo).length}</strong> ativos`;
+    carregarConfigGeracao();
     renderCalendario();
 }
 function fecharModalGerar() { document.getElementById('modal-gerar').classList.add('hidden'); }
@@ -594,6 +614,8 @@ async function executarLimpar() {
 async function executarGerar() {
     const dias = diasSelecionados();
     if (dias.length === 0) { alert('Selecione pelo menos um dia.'); return; }
+
+    salvarConfigGeracao();
 
     const btn = document.getElementById('btn-gerar');
     btn.disabled = true;
