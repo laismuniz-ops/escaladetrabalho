@@ -513,11 +513,18 @@ def entregadores_page(request: Request, mes: Optional[str] = None) -> HTMLRespon
     dias = utils.dias_do_mes(ano, mes_num)
     feriados = models.listar_feriados_ano(ano)
     min_entr_lista = models.get_min_entregadores_dia()
+    # Conta entregadores (ESCALADO + CONFIRMADO) por dia — usado para destacar déficit na grade
+    contagem_por_dia: dict[str, int] = {}
+    for dmap in escalas.values():
+        for d_iso, status in dmap.items():
+            if status in ("ESCALADO", "CONFIRMADO"):
+                contagem_por_dia[d_iso] = contagem_por_dia.get(d_iso, 0) + 1
     return templates.TemplateResponse(
         "entregadores.html",
         _ctx(request, lista=lista, escalas=escalas, dias=dias,
              ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}",
-             feriados=feriados, min_entr_lista=min_entr_lista),
+             feriados=feriados, min_entr_lista=min_entr_lista,
+             contagem_por_dia=contagem_por_dia),
     )
 
 

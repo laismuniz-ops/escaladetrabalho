@@ -46,11 +46,15 @@
                 {% for d in dias %}
                 {% set iso_entr = d.isoformat() %}
                 {% set is_fer = iso_entr in feriados %}
+                {% set count_dia = contagem_por_dia.get(iso_entr, 0) %}
+                {% set min_dia = min_entr_lista[d.weekday()] %}
+                {% set deficit_col = min_dia > 0 and count_dia < min_dia %}
                 <th class="sticky top-0 z-20 px-1 py-1.5 text-center font-bold border-b border-brand-border
                     {% if is_fer %}feriado-header{% else %}bg-white text-brand-grey{% endif %}">
                     {% if is_fer %}<div class="text-[0.48rem] text-green-700 leading-tight font-semibold">{{ feriados[iso_entr][:10] }}</div>{% endif %}
                     <div class="text-[0.55rem] tracking-wide leading-none">{{ dia_semana_curto(d) }}</div>
-                    <div class="text-[0.7rem] font-black leading-snug">{{ d.day }}</div>
+                    <div class="text-[0.7rem] font-black leading-snug {% if deficit_col %}text-red-600{% endif %}">{{ d.day }}</div>
+                    {% if deficit_col %}<div class="text-[0.48rem] text-red-500 leading-tight font-semibold">{{ count_dia }}/{{ min_dia }}</div>{% endif %}
                 </th>
                 {% endfor %}
             </tr>
@@ -525,6 +529,16 @@ async function setCor(id, cor, btn) {
 // ─── Calendário reutilizável ────────────────────────────────────────────────────
 const _listaEntr    = {{ lista | tojson }};
 const _minEntrLista = {{ min_entr_lista | tojson }};
+
+// Sincroniza totais salvos no localStorage → servidor (mantém mínimos do BD atualizados)
+(function () {
+    if (localStorage.getItem('gs_entr_total_0') === null) return; // nunca salvou
+    const fd = new FormData();
+    for (let i = 0; i < 7; i++) {
+        fd.append('min_' + i, localStorage.getItem('gs_entr_total_' + i) || 0);
+    }
+    fetch('/api/entregadores/min-dia', { method: 'POST', body: fd }).catch(() => {});
+})();
 
 function renderCalEm(calId, mesId, counterId) {
     const mesStr = document.getElementById(mesId).value;
