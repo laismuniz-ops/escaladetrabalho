@@ -266,21 +266,21 @@ def init_db() -> None:
 
 
 _FERIADOS_BRASIL = [
-    # 2025
+    # 2025 — Nacionais
     ("2025-01-01","Ano Novo"),("2025-04-18","Sexta-feira Santa"),
     ("2025-04-20","Páscoa"),("2025-04-21","Tiradentes"),
     ("2025-05-01","Dia do Trabalhador"),("2025-06-19","Corpus Christi"),
     ("2025-09-07","Independência do Brasil"),("2025-10-12","Nossa Senhora Aparecida"),
     ("2025-11-02","Finados"),("2025-11-15","Proclamação da República"),
     ("2025-11-20","Consciência Negra"),("2025-12-25","Natal"),
-    # 2026
+    # 2026 — Nacionais
     ("2026-01-01","Ano Novo"),("2026-04-03","Sexta-feira Santa"),
     ("2026-04-05","Páscoa"),("2026-04-21","Tiradentes"),
     ("2026-05-01","Dia do Trabalhador"),("2026-06-04","Corpus Christi"),
     ("2026-09-07","Independência do Brasil"),("2026-10-12","Nossa Senhora Aparecida"),
     ("2026-11-02","Finados"),("2026-11-15","Proclamação da República"),
     ("2026-11-20","Consciência Negra"),("2026-12-25","Natal"),
-    # 2027
+    # 2027 — Nacionais
     ("2027-01-01","Ano Novo"),("2027-03-26","Sexta-feira Santa"),
     ("2027-03-28","Páscoa"),("2027-04-21","Tiradentes"),
     ("2027-05-01","Dia do Trabalhador"),("2027-06-17","Corpus Christi"),
@@ -289,10 +289,27 @@ _FERIADOS_BRASIL = [
     ("2027-11-20","Consciência Negra"),("2027-12-25","Natal"),
 ]
 
+# Feriados estaduais (Amazonas) + municipais (Manaus)
+# Sempre inseridos com INSERT OR IGNORE → seguros de re-executar
+_FERIADOS_MANAUS = [
+    # 2025
+    ("2025-09-05","Elevação do Amazonas à Categoria de Província"),
+    ("2025-10-24","Fundação de Manaus"),
+    # 2026
+    ("2026-09-05","Elevação do Amazonas à Categoria de Província"),
+    ("2026-10-24","Fundação de Manaus"),
+    # 2027
+    ("2027-09-05","Elevação do Amazonas à Categoria de Província"),
+    ("2027-10-24","Fundação de Manaus"),
+]
+
+
 def _seed_feriados_if_empty(cur) -> None:
     cur.execute("SELECT COUNT(*) FROM feriados")
     if cur.fetchone()[0] == 0:
         cur.executemany("INSERT OR IGNORE INTO feriados (data, nome) VALUES (?,?)", _FERIADOS_BRASIL)
+    # Feriados de Manaus/AM sempre garantidos (INSERT OR IGNORE = idempotente)
+    cur.executemany("INSERT OR IGNORE INTO feriados (data, nome) VALUES (?,?)", _FERIADOS_MANAUS)
 
 
 # ---------- Backup ----------
