@@ -48,6 +48,27 @@ def db_cursor():
         conn.close()
 
 
+_ENTREGADORES_INICIAIS = [
+    "André Ferreira", "Andre Oliveira", "Beatriz Araújo", "Breno Farias",
+    "Carlos Alexandre", "Felipe Souza", "Fredy Gonzales", "Isaac Costa",
+    "Luiz Gustavo", "Matheus Guedes", "Matheus Oliveira", "Mayke Martins",
+    "Rafael Gama", "Ruben", "Sergio Sullivan", "Tanner Castro",
+    "Thiago Felipe Weckner", "Uziel Alex",
+]
+
+
+def _seed_entregadores_if_empty(cur) -> None:
+    """Cadastra os entregadores iniciais se a tabela estiver vazia."""
+    cur.execute("SELECT COUNT(*) FROM entregadores")
+    if cur.fetchone()[0] == 0:
+        nomes = sorted(_ENTREGADORES_INICIAIS, key=lambda n: n.lower())
+        for i, nome in enumerate(nomes):
+            cur.execute(
+                "INSERT INTO entregadores (nome, obs, cor, ordem) VALUES (?, '', '', ?)",
+                (nome, i * 10),
+            )
+
+
 def _migrate_entregadores_if_needed(cur) -> None:
     """Adiciona colunas obs e cor à tabela entregadores e reordena alfabeticamente."""
     cur.execute("PRAGMA table_info(entregadores)")
@@ -229,6 +250,7 @@ def init_db() -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_esc_entr_data ON escala_entregadores(data);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_esc_entr_id ON escala_entregadores(entregador_id);")
         _migrate_entregadores_if_needed(cur)
+        _seed_entregadores_if_empty(cur)
 
 
 # ---------- Backup ----------

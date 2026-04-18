@@ -22,7 +22,7 @@
         <span class="entr-ESCALADO px-3 py-1 rounded">E — Escalado</span>
         <span class="entr-CONFIRMADO px-3 py-1 rounded">C — Confirmado</span>
         <span style="color:#3b82f6;" class="font-bold">● Rápido</span>
-        <span style="color:#ef4444;" class="font-bold">● Devagar</span>
+        <span class="font-bold text-gray-500">● Devagar</span>
     </div>
 
     <!-- Grade -->
@@ -45,7 +45,7 @@
             {% set turnos = escalas.get(e.id, {}) %}
             <tr class="border-b border-brand-border {% if not e.ativo %}opacity-40{% endif %}">
                 <td class="sticky left-0 z-10 bg-white px-3 py-2 font-semibold border-r border-brand-border
-                    {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'DEVAGAR' %}entr-nome-devagar{% endif %}">
+                    {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% endif %}">
                     {{ e.nome }}
                     {% if e.obs %}<span class="text-[0.58rem] text-brand-grey font-normal block leading-tight">{{ e.obs }}</span>{% endif %}
                     {% if not e.ativo %}<span class="text-[0.6rem] text-brand-grey ml-1 font-normal">(inativo)</span>{% endif %}
@@ -94,7 +94,7 @@
             {% for e in lista %}
             <tr class="{% if not e.ativo %}opacity-50{% endif %}">
                 <!-- Nome com cor -->
-                <td class="font-semibold {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'DEVAGAR' %}entr-nome-devagar{% endif %}">
+                <td class="font-semibold {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% endif %}">
                     {{ e.nome }}
                 </td>
 
@@ -299,9 +299,8 @@ async function setCor(id, cor, btn) {
         btn.classList.add('cor-ativo');
         // Atualiza cor do nome na linha
         const nomeCell = row.querySelector('td:first-child');
-        nomeCell.classList.remove('entr-nome-rapido', 'entr-nome-devagar');
+        nomeCell.classList.remove('entr-nome-rapido');
         if (cor === 'RAPIDO') nomeCell.classList.add('entr-nome-rapido');
-        else if (cor === 'DEVAGAR') nomeCell.classList.add('entr-nome-devagar');
     }
 }
 </script>
