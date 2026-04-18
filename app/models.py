@@ -284,3 +284,91 @@ def set_nota(funcionario_id: int, data_iso: str, texto: str) -> None:
                    ON CONFLICT(funcionario_id, data) DO UPDATE SET texto = excluded.texto""",
                 (funcionario_id, data_iso, texto.strip()),
             )
+
+
+# ---------- Entregadores ----------
+
+STATUS_ENTREGADOR = {"ESCALADO", "CONFIRMADO"}
+
+def listar_entregadores(ativos_apenas: bool = True) -> list[dict]:
+    sql = "SELECT * FROM entregadores WHERE 1=1"
+    if ativos_apenas:
+        sql += " AND ativo = 1"
+    sql += " ORDER BY ordem, id"
+    with db_cursor() as cur:
+        cur.execute(sql)
+        return [dict(r) for r in cur.fetchall()]
+
+def criar_entregador(nome: str, ordem: int = 0) -> int:
+    with db_cursor() as cur:
+        cur.execute("INSERT INTO entregadores (nome, ordem) VALUES (?, ?)", (nome.strip(), ordem))
+        return cur.lastrowid
+
+def atualizar_entregador(eid: int, nome: str = None, ativo: bool = None) -> None:
+    campos, valores = [], []
+    if nome is not None:
+        campos.append("nome = ?"); valores.append(nome.strip())
+    if ativo is not None:
+        campos.append("ativo = ?"); valores.append(1 if ativo else 0)
+    if not campos:
+        return
+    valores.append(eid)
+    with db_cursor() as cur:
+        cur.execute(f"UPDATE entregadores SET {', '.join(campos)} WHERE id = ?", valores)
+
+def remover_entregador(eid: int) -> None:
+    with db_cursor() as cur:
+        cur.execute("DELETE FROM entregadores WHERE id = ?", (eid,))
+
+def toggle_ativo_entregador(eid: int) -> bool:
+    with db_cursor() as cur:
+        cur.execute("SELECT ativo FROM entregadores WHERE id = ?", (eid,))
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("Entregador não encontrado")
+        novo = 0 if row["ativo"] else 1
+        cur.execute("UPDATE entregadores SET ativo = ? WHERE id = ?", (novo, eid))
+        return bool(novo)
+
+def mover_entregador(eid: int, direcao: str) -> None:
+    with db_cursor() as cur:
+        cur.execute("SELECT id FROM entregadores ORDER BY ordem, id")
+        ids = [r["id"] for r in cur.fetchall()]
+        try:
+            pos = ids.index(eid)
+        except ValueError:
+            return
+        if direcao == "up" and pos > 0:
+            ids[pos], ids[pos-1] = ids[pos-1], ids[pos]
+        elif direcao == "down" and pos < len(ids) - 1:
+            ids[pos], ids[pos+1] = ids[pos+1], ids[pos]
+        else:
+            return
+        for i, fid in enumerate(ids):
+            cur.execute("UPDATE entregadores SET ordem = ? WHERE id = ?", (i * 10, fid))
+
+def set_status_entregador(eid: int, data_iso: str, status: str = None) -> None:
+    with db_cursor() as cur:
+        if not status:
+            cur.execute("DELETE FROM escala_entregadores WHERE entregador_id = ? AND data = ?", (eid, data_iso))
+            return
+        if status not in STATUS_ENTREGADOR:
+            raise ValueError(f"Status inválido: {status}")
+        cur.execute(
+            """INSERT INTO escala_entregadores (entregador_id, data, status) VALUES (?, ?, ?)
+               ON CONFLICT(entregador_id, data) DO UPDATE SET status = excluded.status""",
+            (eid, data_iso, status)
+        )
+
+def escala_entregadores_mensal(ano: int, mes: int) -> dict[int, dict[str, str]]:
+    primeiro = f"{ano:04d}-{mes:02d}-01"
+    proximo = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
+    resultado = {}
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT entregador_id, data, status FROM escala_entregadores WHERE data >= ? AND data < ?",
+            (primeiro, proximo)
+        )
+        for row in cur.fetchall():
+            resultado.setdefault(row["entregador_id"], {})[row["data"]] = row["status"]
+    return resultado

@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-ABAS_DISPONIVEIS = ["dia", "grade", "individual", "cadastros", "usuarios"]
+ABAS_DISPONIVEIS = ["dia", "grade", "individual", "cadastros", "entregadores", "usuarios"]
 
 
 # ---------- Senhas ----------

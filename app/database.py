@@ -184,6 +184,30 @@ def init_db() -> None:
             """
         )
         _migrate_minimos_if_needed(cur)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS entregadores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                ativo INTEGER NOT NULL DEFAULT 1,
+                ordem INTEGER NOT NULL DEFAULT 0
+            );
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS escala_entregadores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entregador_id INTEGER NOT NULL,
+                data TEXT NOT NULL,
+                status TEXT NOT NULL,
+                UNIQUE(entregador_id, data),
+                FOREIGN KEY (entregador_id) REFERENCES entregadores(id) ON DELETE CASCADE
+            );
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_esc_entr_data ON escala_entregadores(data);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_esc_entr_id ON escala_entregadores(entregador_id);")
 
 
 # ---------- Backup ----------

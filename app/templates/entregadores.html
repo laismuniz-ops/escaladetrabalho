@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Entregadores — GS Escala de Trabalho{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+            <p class="gs-section-title">Escala de</p>
+            <h1 class="text-2xl font-bold tracking-wide uppercase mt-1">Entregadores — {{ nome_mes(mes) }} / {{ ano }}</h1>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+            <form method="get" class="flex items-center gap-2">
+                <label class="gs-section-title">Mês</label>
+                <input type="month" name="mes" value="{{ mes_str }}" class="gs-input w-auto" onchange="this.form.submit()">
+            </form>
+        </div>
+    </div>
+
+    <!-- Legenda -->
+    <div class="flex items-center gap-3 flex-wrap">
+        <span class="entr-ESCALADO px-3 py-0.5 rounded text-xs font-bold">E — Escalado</span>
+        <span class="entr-CONFIRMADO px-3 py-0.5 rounded text-xs font-bold">C — Confirmado</span>
+    </div>
+
+    <!-- Grade -->
+    <div class="gs-card overflow-auto" style="max-height: 75vh;">
+    <table class="border-collapse text-xs min-w-full">
+        <thead>
+            <tr>
+                <th class="sticky left-0 top-0 z-30 bg-white text-left px-3 py-2 min-w-[180px] text-brand-grey text-[0.6rem] tracking-widest uppercase font-bold border-b border-brand-border">Entregador</th>
+                {% for d in dias %}
+                <th class="sticky top-0 z-20 px-1 py-1.5 text-center font-bold border-b border-brand-border
+                    {% if d.weekday() == 6 %}domingo-header{% else %}bg-white text-brand-grey{% endif %}">
+                    <div class="text-[0.55rem] tracking-wide leading-none">{{ dia_semana_curto(d) }}</div>
+                    <div class="text-[0.7rem] font-black leading-snug">{{ d.day }}</div>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in lista %}
+            {% set turnos = escalas.get(e.id, {}) %}
+            <tr class="border-b border-brand-border {% if not e.ativo %}opacity-40{% endif %}">
+                <td class="sticky left-0 z-10 bg-white px-3 py-2 font-semibold border-r border-brand-border">
+                    {{ e.nome }}
+                    {% if not e.ativo %}<span class="text-[0.6rem] text-brand-grey ml-1">(inativo)</span>{% endif %}
+                </td>
+                {% for d in dias %}
+                {% set iso = d.isoformat() %}
+                {% set s = turnos.get(iso, '') %}
+                <td class="entr-cell {% if s %}entr-{{ s }}{% else %}entr-vazio{% endif %}"
+                    data-id="{{ e.id }}" data-data="{{ iso }}" data-status="{{ s }}">
+                    {% if s == 'ESCALADO' %}E{% elif s == 'CONFIRMADO' %}C{% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            {% if not lista %}
+            <tr><td colspan="{{ dias|length + 1 }}" class="text-center py-12 text-brand-grey">
+                Nenhum entregador cadastrado ainda.
+            </td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+    </div>
+
+    <!-- Gerenciar entregadores -->
+    <div class="gs-card p-5">
+        <p class="gs-section-title mb-3">Gerenciar entregadores</p>
+        <div class="flex gap-2 mb-4">
+            <form method="post" action="/api/entregadores" class="flex gap-2 flex-1">
+                <input name="nome" placeholder="Nome do entregador" required class="gs-input flex-1">
+                <button type="submit" class="gs-btn gs-btn-primary whitespace-nowrap">+ Adicionar</button>
+            </form>
+        </div>
+        {% if lista %}
+        <div class="overflow-x-auto">
+        <table class="gs-table">
+            <thead><tr><th>Nome</th><th>Status</th><th class="text-right">Ações</th></tr></thead>
+            <tbody>
+            {% for e in lista %}
+            <tr class="{% if not e.ativo %}opacity-50{% endif %}">
+                <td class="font-semibold">{{ e.nome }}</td>
+                <td>
+                    {% if e.ativo %}
+                        <span class="text-xs text-green-600">● Ativo</span>
+                    {% else %}
+                        <span class="text-xs text-brand-grey">○ Inativo</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="flex gap-1 justify-end">
+                        <form method="post" action="/api/entregadores/{{ e.id }}/mover">
+                            <input type="hidden" name="direcao" value="up">
+                            <button type="submit" class="gs-btn gs-btn-ghost text-xs py-1 px-2">↑</button>
+                        </form>
+                        <form method="post" action="/api/entregadores/{{ e.id }}/mover">
+                            <input type="hidden" name="direcao" value="down">
+                            <button type="submit" class="gs-btn gs-btn-ghost text-xs py-1 px-2">↓</button>
+                        </form>
+                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-3 btn-toggle-entr"
+                                data-id="{{ e.id }}" data-ativo="{{ e.ativo }}">
+                            {% if e.ativo %}Inativar{% else %}Ativar{% endif %}
+                        </button>
+                        <form method="post" action="/api/entregadores/{{ e.id }}/remover"
+                              onsubmit="return confirm('Remover {{ e.nome }}?')">
+                            <button type="submit" class="gs-btn gs-btn-danger text-xs py-1 px-3">Remover</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Menu de status -->
+<div id="entr-menu" style="
+    display:none; position:fixed; z-index:1000;
+    background:#fff; border:1px solid #e5e5e3; border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.15); padding:6px; min-width:140px;">
+    <div style="font-size:0.55rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#80807b;padding:4px 8px 5px;">
+        Status
+    </div>
+    <button data-status="ESCALADO" style="display:block;width:100%;text-align:left;padding:6px 10px;margin:2px 0;border-radius:6px;font-size:0.72rem;font-weight:700;cursor:pointer;background:#fef08a;color:#713f12;border:1px solid #facc15;">
+        E — Escalado
+    </button>
+    <button data-status="CONFIRMADO" style="display:block;width:100%;text-align:left;padding:6px 10px;margin:2px 0;border-radius:6px;font-size:0.72rem;font-weight:700;cursor:pointer;background:#bbf7d0;color:#14532d;border:1px solid #4ade80;">
+        C — Confirmado
+    </button>
+    <div style="border-top:1px solid #e5e5e3;margin:4px 2px;"></div>
+    <button data-status="" style="display:block;width:100%;text-align:left;padding:6px 10px;margin:2px 0;border-radius:6px;font-size:0.72rem;font-weight:700;cursor:pointer;background:#fafafa;color:#999;border:1px solid #e5e5e3;">
+        ✕ Limpar
+    </button>
+</div>
+
+<script>
+const menu = document.getElementById('entr-menu');
+let celulaAtiva = null;
+
+function abrirMenu(cell) {
+    celulaAtiva = cell;
+    const rect = cell.getBoundingClientRect();
+    let top = rect.bottom + 4;
+    if (top + 160 > window.innerHeight) top = rect.top - 164;
+    let left = rect.left;
+    if (left + 150 > window.innerWidth) left = window.innerWidth - 153;
+    menu.style.top = top + 'px';
+    menu.style.left = left + 'px';
+    menu.style.display = 'block';
+}
+
+document.querySelectorAll('.entr-cell').forEach(cell => {
+    cell.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (celulaAtiva === cell) { menu.style.display = 'none'; celulaAtiva = null; return; }
+        abrirMenu(cell);
+    });
+});
+
+menu.querySelectorAll('button[data-status]').forEach(btn => {
+    btn.addEventListener('click', async ev => {
+        ev.stopPropagation();
+        if (!celulaAtiva) return;
+        const status = btn.dataset.status;
+        const fd = new FormData();
+        fd.append('entregador_id', celulaAtiva.dataset.id);
+        fd.append('data', celulaAtiva.dataset.data);
+        fd.append('status', status);
+        try {
+            const r = await fetch('/api/entregadores/escala/set', { method: 'POST', body: fd });
+            if (!r.ok) throw new Error();
+            celulaAtiva.dataset.status = status;
+            if (status === 'ESCALADO') {
+                celulaAtiva.className = 'entr-cell entr-ESCALADO';
+                celulaAtiva.textContent = 'E';
+            } else if (status === 'CONFIRMADO') {
+                celulaAtiva.className = 'entr-cell entr-CONFIRMADO';
+                celulaAtiva.textContent = 'C';
+            } else {
+                celulaAtiva.className = 'entr-cell entr-vazio';
+                celulaAtiva.textContent = '';
+            }
+        } catch { alert('Erro ao salvar.'); }
+        menu.style.display = 'none';
+        celulaAtiva = null;
+    });
+});
+
+document.addEventListener('click', () => { menu.style.display = 'none'; celulaAtiva = null; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { menu.style.display = 'none'; celulaAtiva = null; } });
+
+// Toggle ativo
+document.querySelectorAll('.btn-toggle-entr').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const r = await fetch(`/api/entregadores/${id}/toggle-ativo`, { method: 'POST' });
+        if (r.ok) location.reload();
+    });
+});
+</script>
+{% endblock %}

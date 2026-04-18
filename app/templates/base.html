@@ -57,6 +57,9 @@
             {% if u.is_admin or 'cadastros' in u.abas_permitidas %}
             <a href="/cadastros" class="nav-link {% if '/cadastros' in request.url.path %}nav-active{% endif %}">Cadastros</a>
             {% endif %}
+            {% if u.is_admin or 'entregadores' in u.abas_permitidas %}
+            <a href="/entregadores" class="nav-link {% if '/entregadores' in request.url.path %}nav-active{% endif %}">Entregadores</a>
+            {% endif %}
             {% if u.is_admin %}
             <a href="/admin/usuarios" class="nav-link {% if '/admin' in request.url.path %}nav-active{% endif %}">Administração</a>
             {% endif %}

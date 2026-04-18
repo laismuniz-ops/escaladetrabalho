@@ -485,6 +485,67 @@ def api_set_nota(
     return {"ok": True, "data": data, "texto": texto.strip()}
 
 
+# ---------- Entregadores ----------
+
+@app.get("/entregadores", response_class=HTMLResponse)
+def entregadores_page(request: Request, mes: Optional[str] = None) -> HTMLResponse:
+    if redir := auth.verificar_permissao(request, "entregadores"):
+        return redir
+    ano, mes_num = _parse_mes(mes)
+    lista = models.listar_entregadores(ativos_apenas=False)
+    escalas = models.escala_entregadores_mensal(ano, mes_num)
+    dias = utils.dias_do_mes(ano, mes_num)
+    return templates.TemplateResponse(
+        "entregadores.html",
+        _ctx(request, lista=lista, escalas=escalas, dias=dias,
+             ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}"),
+    )
+
+@app.post("/api/entregadores")
+async def criar_entregador_route(request: Request) -> RedirectResponse:
+    if redir := auth.verificar_permissao(request, "entregadores"):
+        return redir
+    form = await request.form()
+    nome = str(form.get("nome", "")).strip()
+    if nome:
+        models.criar_entregador(nome)
+    return RedirectResponse(url="/entregadores", status_code=303)
+
+@app.post("/api/entregadores/{eid}/remover")
+def remover_entregador_route(request: Request, eid: int) -> RedirectResponse:
+    if redir := auth.verificar_permissao(request, "entregadores"):
+        return redir
+    models.remover_entregador(eid)
+    return RedirectResponse(url="/entregadores", status_code=303)
+
+@app.post("/api/entregadores/{eid}/toggle-ativo")
+def toggle_entregador_route(request: Request, eid: int) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    novo = models.toggle_ativo_entregador(eid)
+    return {"ok": True, "ativo": novo}
+
+@app.post("/api/entregadores/{eid}/mover")
+async def mover_entregador_route(request: Request, eid: int) -> RedirectResponse:
+    if redir := auth.verificar_permissao(request, "entregadores"):
+        return redir
+    form = await request.form()
+    models.mover_entregador(eid, str(form.get("direcao", "")))
+    return RedirectResponse(url="/entregadores", status_code=303)
+
+@app.post("/api/entregadores/escala/set")
+def api_set_status_entregador(
+    request: Request,
+    entregador_id: int = Form(...),
+    data: str = Form(...),
+    status: str = Form(""),
+) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    models.set_status_entregador(entregador_id, data, status or None)
+    return {"ok": True}
+
+
 # ---------- PDF ----------
 
 @app.get("/pdf/{tipo}")

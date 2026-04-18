@@ -182,3 +182,25 @@ input[type="checkbox"].gs-check {
 /* Alertas */
 .gs-alert-ok   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; }
 .gs-alert-erro { background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239; border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; }
+
+/* Entregadores */
+.entr-cell {
+  cursor: pointer;
+  user-select: none;
+  min-width: 36px;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 1px;
+  border: 1px solid var(--border);
+  transition: transform 0.08s ease, outline 0.08s ease;
+}
+.entr-cell:hover {
+  transform: scale(1.08);
+  outline: 2px solid var(--black);
+  z-index: 2;
+  position: relative;
+}
+.entr-ESCALADO   { background: #fef08a; color: #713f12; border: 1px solid #facc15; }
+.entr-CONFIRMADO { background: #bbf7d0; color: #14532d; border: 1px solid #4ade80; }
+.entr-vazio      { background: #fafafa; color: #d4d4d4; }
