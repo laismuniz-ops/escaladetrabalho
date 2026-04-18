@@ -520,7 +520,7 @@ def entregadores_page(request: Request, mes: Optional[str] = None) -> HTMLRespon
 
 
 @app.post("/api/entregadores/min-dia")
-async def api_set_min_entregadores_dia(request: Request) -> RedirectResponse:
+async def api_set_min_entregadores_dia(request: Request) -> dict:
     if redir := auth.verificar_permissao(request, "entregadores"):
         return redir
     form = await request.form()
@@ -530,8 +530,7 @@ async def api_set_min_entregadores_dia(request: Request) -> RedirectResponse:
         except (ValueError, TypeError):
             val = 0
         models.set_min_entregadores_dia(i, val)
-    mes = str(form.get("mes", ""))
-    return RedirectResponse(url=f"/entregadores?mes={mes}" if mes else "/entregadores", status_code=303)
+    return {"ok": True}
 
 @app.post("/api/entregadores")
 async def criar_entregador_route(request: Request) -> RedirectResponse:

@@ -84,28 +84,6 @@
     </table>
     </div>
 
-    <!-- Mínimo de confirmados por dia -->
-    <div class="gs-card px-4 py-3">
-        <p class="gs-section-title mb-3">Mínimo de confirmados por dia da semana</p>
-        <form method="post" action="/api/entregadores/min-dia" class="flex items-end gap-4 flex-wrap">
-            <input type="hidden" name="mes" value="{{ mes_str }}">
-            <div class="grid grid-cols-7 gap-2">
-                {% set dias_nomes_min = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
-                {% for i in range(7) %}
-                <div class="text-center">
-                    <div class="gs-section-title mb-1">{{ dias_nomes_min[i] }}</div>
-                    <input type="number" name="min_{{ i }}"
-                           value="{{ min_entr_lista[i] }}" min="0"
-                           class="gs-input text-center px-1 w-full"
-                           style="padding-left:4px;padding-right:4px;">
-                </div>
-                {% endfor %}
-            </div>
-            <button type="submit" class="gs-btn gs-btn-primary text-xs py-1.5 px-4 whitespace-nowrap">Salvar mínimos</button>
-        </form>
-        <p class="text-xs text-brand-grey mt-2">O alerta de déficit na aba <strong>Equipe do dia</strong> aparece quando o número de <strong>CONFIRMADOS</strong> for menor que o mínimo do dia.</p>
-    </div>
-
     <!-- Gerenciar entregadores -->
     <div class="gs-card p-5">
         <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
@@ -545,7 +523,8 @@ async function setCor(id, cor, btn) {
 }
 
 // ─── Calendário reutilizável ────────────────────────────────────────────────────
-const _listaEntr = {{ lista | tojson }};
+const _listaEntr    = {{ lista | tojson }};
+const _minEntrLista = {{ min_entr_lista | tojson }};
 
 function renderCalEm(calId, mesId, counterId) {
     const mesStr = document.getElementById(mesId).value;
@@ -596,11 +575,16 @@ function diasSelecionados()  { return diasSelecionadosEm('g-calendario'); }
 
 // ─── Persistência de configuração (localStorage) ────────────────────────────────
 function salvarConfigGeracao(mostrarFeedback = false) {
+    const fd = new FormData();
     for (let i = 0; i < 7; i++) {
-        localStorage.setItem(`gs_entr_total_${i}`, document.getElementById(`g-total-${i}`).value);
+        const totalVal = document.getElementById(`g-total-${i}`).value;
+        localStorage.setItem(`gs_entr_total_${i}`, totalVal);
         localStorage.setItem(`gs_entr_min_r_${i}`, document.getElementById(`g-min-r-${i}`).value);
         localStorage.setItem(`gs_entr_min_n_${i}`, document.getElementById(`g-min-n-${i}`).value);
+        fd.append(`min_${i}`, totalVal);
     }
+    // Persiste os totais como mínimos por dia no servidor
+    fetch('/api/entregadores/min-dia', { method: 'POST', body: fd }).catch(() => {});
     if (mostrarFeedback) {
         const ok = document.getElementById('g-salvo-ok');
         if (ok) {
@@ -615,9 +599,10 @@ function carregarConfigGeracao() {
         const total = localStorage.getItem(`gs_entr_total_${i}`);
         const minR  = localStorage.getItem(`gs_entr_min_r_${i}`);
         const minN  = localStorage.getItem(`gs_entr_min_n_${i}`);
-        if (total !== null) document.getElementById(`g-total-${i}`).value = total;
-        if (minR  !== null) document.getElementById(`g-min-r-${i}`).value = minR;
-        if (minN  !== null) document.getElementById(`g-min-n-${i}`).value = minN;
+        // Usa localStorage se disponível, senão usa valor salvo no servidor (totais = mínimos)
+        document.getElementById(`g-total-${i}`).value = total !== null ? total : (_minEntrLista[i] || 0);
+        if (minR !== null) document.getElementById(`g-min-r-${i}`).value = minR;
+        if (minN !== null) document.getElementById(`g-min-n-${i}`).value = minN;
     }
 }
 
