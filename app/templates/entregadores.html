@@ -194,10 +194,20 @@
                 <input type="month" id="g-mes" value="{{ mes_str }}" class="gs-input" onchange="renderCalendario()">
             </div>
 
-            <!-- Total por dia -->
-            <div>
-                <label class="gs-section-title block mb-1">Entregadores por dia</label>
-                <input type="number" id="g-total" value="4" min="1" class="gs-input">
+            <!-- Total por dia da semana -->
+            <div class="col-span-2">
+                <label class="gs-section-title block mb-2">Entregadores por dia</label>
+                <div class="grid grid-cols-7 gap-1">
+                    {% set dias_nomes = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] %}
+                    {% for i in range(7) %}
+                    <div class="text-center">
+                        <div class="gs-section-title mb-1 {% if i == 6 %}text-red-600{% endif %}">{{ dias_nomes[i] }}</div>
+                        <input type="number" id="g-total-{{ i }}" value="4" min="0"
+                               class="gs-input text-center px-1 {% if i == 6 %}border-red-300{% endif %}"
+                               style="padding-left:4px;padding-right:4px;">
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
 
             <!-- Min Rápidos / Normais -->
@@ -478,7 +488,7 @@ async function executarGerar() {
     try {
         const fd = new FormData();
         fd.append('mes', document.getElementById('g-mes').value);
-        fd.append('total_por_dia', document.getElementById('g-total').value);
+        for (let i = 0; i < 7; i++) fd.append(`total_${i}`, document.getElementById(`g-total-${i}`).value);
         fd.append('min_rapido', document.getElementById('g-min-r').value);
         fd.append('min_normal', document.getElementById('g-min-n').value);
         if (document.getElementById('g-sobrescrever').checked) fd.append('sobrescrever', '1');

@@ -407,7 +407,7 @@ import calendar as _cal
 def gerar_escala_auto(
     ano: int,
     mes: int,
-    total_por_dia: int,
+    total_por_dia_semana: list,  # lista de 7 ints [seg, ter, qua, qui, sex, sab, dom]
     min_rapido: int,
     min_normal: int,
     dias_especificos: list = None,  # lista de strings ISO; None = mês inteiro
@@ -415,6 +415,7 @@ def gerar_escala_auto(
 ) -> dict:
     """
     Gera escala automática.
+    - total_por_dia_semana: 7 valores, um por dia da semana (0=Seg … 6=Dom)
     - Distribui de forma equilibrada (quem trabalhou menos vai primeiro)
     - Garante mínimos de Rápidos e Normais por dia
     - Respeita limite de 2 dias por semana por entregador
@@ -484,7 +485,8 @@ def gerar_escala_auto(
             selecionados.add(d["id"])
 
         # 3. Preenche restante com qualquer elegível
-        restante = max(0, total_por_dia - len(selecionados))
+        total_hoje = total_por_dia_semana[dia.weekday()]
+        restante = max(0, total_hoje - len(selecionados))
         if restante:
             pool = sorted(
                 [d for d in elig_todos if d["id"] not in selecionados],

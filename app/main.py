@@ -584,13 +584,14 @@ async def api_gerar_escala_entregadores(request: Request) -> dict:
     form = await request.form()
     mes_str = str(form.get("mes", ""))
     ano, mes_num = _parse_mes(mes_str if mes_str else None)
-    total      = int(form.get("total_por_dia", 4))
+    # 7 valores, um por dia da semana (0=Seg … 6=Dom)
+    totais = [int(form.get(f"total_{i}", 4)) for i in range(7)]
     min_r      = int(form.get("min_rapido", 0))
     min_n      = int(form.get("min_normal", 0))
     sobrescrever = form.get("sobrescrever", "") == "1"
     dias_raw       = form.getlist("dias_especificos")
     dias_especificos = dias_raw if dias_raw else None
-    resultado  = models.gerar_escala_auto(ano, mes_num, total, min_r, min_n, dias_especificos, sobrescrever)
+    resultado  = models.gerar_escala_auto(ano, mes_num, totais, min_r, min_n, dias_especificos, sobrescrever)
     return resultado
 
 
