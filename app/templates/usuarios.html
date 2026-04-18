@@ -114,7 +114,10 @@
                     <div class="flex gap-2 justify-end">
                         <button class="gs-btn gs-btn-ghost text-xs py-1 px-3 btn-editar"
                                 data-id="{{ u.id }}"
-                                data-usuario='{{ u | tojson }}'>Editar</button>
+                                data-nome="{{ u.nome }}"
+                                data-admin="{{ u.is_admin }}"
+                                data-ativo="{{ u.ativo }}"
+                                data-abas="{{ u.abas_list | tojson | e }}">Editar</button>
                         <form method="post" action="/api/usuarios/{{ u.id }}/remover"
                               onsubmit="return confirm('Remover {{ u.nome }}?')">
                             <button type="submit" class="gs-btn gs-btn-danger text-xs py-1 px-3">Remover</button>
@@ -174,32 +177,27 @@ const ABAS = {{ ABAS_DISPONIVEIS | tojson }};
 
 document.querySelectorAll('.btn-editar').forEach(btn => {
     btn.addEventListener('click', () => {
-        const id = btn.dataset.id;
-        const u = JSON.parse(btn.dataset.usuario);
-        abrirEditar(id, u);
+        document.getElementById('modal-form').action = `/api/usuarios/${btn.dataset.id}/atualizar`;
+        document.getElementById('m-nome').value = btn.dataset.nome;
+        document.getElementById('m-admin').checked = btn.dataset.admin === '1';
+        document.getElementById('m-ativo').checked = btn.dataset.ativo === '1';
+
+        let abasAtivas = [];
+        try { abasAtivas = JSON.parse(btn.dataset.abas || '[]'); } catch(e) {}
+
+        const container = document.getElementById('m-abas');
+        container.innerHTML = ABAS.map(aba => `
+            <label class="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" name="abas" value="${aba}" class="gs-check"
+                       ${abasAtivas.includes(aba) ? 'checked' : ''}>
+                <span class="capitalize text-brand-grey">${aba}</span>
+            </label>
+        `).join('');
+
+        document.getElementById('modal').classList.remove('hidden');
     });
 });
 
-function abrirEditar(id, u) {
-    document.getElementById('modal-form').action = `/api/usuarios/${id}/atualizar`;
-    document.getElementById('m-nome').value = u.nome;
-    document.getElementById('m-admin').checked = !!u.is_admin;
-    document.getElementById('m-ativo').checked = !!u.ativo;
-
-    let abasAtivas = [];
-    try { abasAtivas = JSON.parse(u.abas_permitidas || '[]'); } catch(e) {}
-
-    const container = document.getElementById('m-abas');
-    container.innerHTML = ABAS.map(aba => `
-        <label class="flex items-center gap-2 cursor-pointer text-sm">
-            <input type="checkbox" name="abas" value="${aba}" class="gs-check"
-                   ${abasAtivas.includes(aba) ? 'checked' : ''}>
-            <span class="capitalize text-brand-grey">${aba}</span>
-        </label>
-    `).join('');
-
-    document.getElementById('modal').classList.remove('hidden');
-}
 function fecharModal() {
     document.getElementById('modal').classList.add('hidden');
 }

@@ -158,13 +158,34 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="senha">Senha</label>
-                <input class="form-input" type="password" id="senha" name="senha"
-                       autocomplete="current-password" required>
+                <div style="position:relative;">
+                    <input class="form-input" type="password" id="senha" name="senha"
+                           autocomplete="current-password" required style="padding-right:44px;">
+                    <button type="button" onclick="toggleSenha()" id="btn-ver-senha"
+                            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                                   background:none;border:none;cursor:pointer;color:#80807b;
+                                   font-size:1.1rem;padding:0;line-height:1;" title="Ver senha">
+                        👁
+                    </button>
+                </div>
             </div>
             <button type="submit" class="btn-login">Entrar</button>
         </form>
 
         <div class="footer-copy">Singular Sushi® &nbsp;·&nbsp; 2026</div>
     </div>
+<script>
+function toggleSenha() {
+    const input = document.getElementById('senha');
+    const btn = document.getElementById('btn-ver-senha');
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+    } else {
+        input.type = 'password';
+        btn.textContent = '👁';
+    }
+}
+</script>
 </body>
 </html>
