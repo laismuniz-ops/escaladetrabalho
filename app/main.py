@@ -166,6 +166,7 @@ def home(request: Request, data: Optional[str] = None) -> HTMLResponse:
     entregadores_dia  = models.escala_entregadores_do_dia(dia.isoformat())
     confirmados_entr  = sum(1 for e in entregadores_dia if e["status"] == "CONFIRMADO")
     escalados_entr    = sum(1 for e in entregadores_dia if e["status"] == "ESCALADO")
+    total_entr        = confirmados_entr + escalados_entr
     min_entr_lista    = models.get_min_entregadores_dia()
     min_entr_hoje     = min_entr_lista[dow_dia]
     deficit_entr      = max(0, min_entr_hoje - confirmados_entr) if min_entr_hoje > 0 else 0
@@ -175,6 +176,7 @@ def home(request: Request, data: Optional[str] = None) -> HTMLResponse:
              total=len(escalados), alertas_dia=alertas_dia,
              entregadores_dia=entregadores_dia,
              confirmados_entr=confirmados_entr, escalados_entr=escalados_entr,
+             total_entr=total_entr,
              min_entr_hoje=min_entr_hoje, deficit_entr=deficit_entr),
     )
 
