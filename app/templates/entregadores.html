@@ -103,11 +103,19 @@
                 {% if sem_cor %}<span class="text-brand-grey">{{ sem_cor | length }} sem classificação</span>{% endif %}
             </div>
         </div>
-        <div class="flex gap-2 mb-4">
+        <div class="flex gap-2 mb-4 flex-wrap items-center">
             <form method="post" action="/api/entregadores" class="flex gap-2 flex-1">
                 <input name="nome" placeholder="Nome do entregador" required class="gs-input flex-1">
                 <button type="submit" class="gs-btn gs-btn-primary whitespace-nowrap">+ Adicionar</button>
             </form>
+            <div class="flex items-center gap-2 text-xs text-brand-grey whitespace-nowrap">
+                <span class="gs-section-title">📱 Semana do Zap:</span>
+                <input type="date" id="zap-semana-ref"
+                       class="gs-input text-xs py-1 w-auto"
+                       title="Escolha qualquer dia da semana desejada"
+                       onchange="atualizarLabelSemanaZap()">
+                <span id="zap-semana-label" class="font-semibold text-brand-dark"></span>
+            </div>
         </div>
         {% if lista %}
         <div class="overflow-x-auto">
@@ -176,7 +184,13 @@
 
                 <!-- Ações -->
                 <td>
-                    <div class="flex gap-1 justify-end">
+                    <div class="flex gap-1 justify-end flex-wrap">
+                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-whatsapp"
+                                data-id="{{ e.id }}" data-nome="{{ e.nome }}"
+                                title="Enviar disponibilidade por WhatsApp"
+                                style="color:#25d366;border-color:#25d366;">
+                            📱 Zap
+                        </button>
                         <form method="post" action="/api/entregadores/{{ e.id }}/mover">
                             <input type="hidden" name="direcao" value="up">
                             <button type="submit" class="gs-btn gs-btn-ghost text-xs py-1 px-2">↑</button>
@@ -508,6 +522,91 @@ async function salvarObs(id, texto) {
     const fd = new FormData();
     fd.append('texto', texto);
     await fetch(`/api/entregadores/${id}/obs`, { method: 'POST', body: fd });
+}
+
+// ─── WhatsApp — verificar disponibilidade ───────────────────────────────────────
+
+// Retorna a segunda-feira da semana de uma data qualquer
+function segundaDaSemana(data) {
+    const d = new Date(data);
+    d.setHours(0, 0, 0, 0);
+    const dow = d.getDay(); // 0=Dom
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    return d;
+}
+
+function isoLocal(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function atualizarLabelSemanaZap() {
+    const input = document.getElementById('zap-semana-ref');
+    const label = document.getElementById('zap-semana-label');
+    if (!input.value) { label.textContent = ''; return; }
+    const [ano, mes, dia] = input.value.split('-').map(Number);
+    const seg = segundaDaSemana(new Date(ano, mes - 1, dia));
+    const dom = new Date(seg); dom.setDate(seg.getDate() + 6);
+    const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+    label.textContent = `${fmt(seg)} – ${fmt(dom)}`;
+}
+
+// Inicializa com a semana atual
+(function () {
+    const input = document.getElementById('zap-semana-ref');
+    if (input) {
+        input.value = isoLocal(new Date());
+        atualizarLabelSemanaZap();
+    }
+})();
+
+document.querySelectorAll('.btn-whatsapp').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const eid  = btn.dataset.id;
+        const nome = btn.dataset.nome;
+        const fone = btn.closest('tr').querySelector('input[type="tel"]')?.value || '';
+        enviarWhatsAppDisponibilidade(eid, nome, fone);
+    });
+});
+
+function enviarWhatsAppDisponibilidade(eid, nome, telefone) {
+    if (!telefone || telefone.trim() === '') {
+        alert('Cadastre o telefone de ' + nome.split(' ')[0] + ' antes de enviar.');
+        return;
+    }
+
+    // Determina a semana a partir do input de referência
+    const inputRef = document.getElementById('zap-semana-ref');
+    const refDate  = inputRef && inputRef.value
+        ? (() => { const [a,m,d] = inputRef.value.split('-').map(Number); return new Date(a, m-1, d); })()
+        : new Date();
+    const seg = segundaDaSemana(refDate);
+
+    const nomesDias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const diasEscalados = [];
+
+    for (let i = 0; i < 7; i++) {
+        const d   = new Date(seg);
+        d.setDate(seg.getDate() + i);
+        const iso  = isoLocal(d);
+        const cell = document.querySelector(`.entr-cell[data-id="${eid}"][data-data="${iso}"]`);
+        if (cell && cell.dataset.status && cell.dataset.status !== '') {
+            diasEscalados.push(`${nomesDias[d.getDay()]} (${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')})`);
+        }
+    }
+
+    if (diasEscalados.length === 0) {
+        alert(nome.split(' ')[0] + ' não tem dias escalados na semana selecionada.');
+        return;
+    }
+
+    const primeiroNome = nome.split(' ')[0];
+    const listaDias = diasEscalados.length === 1
+        ? diasEscalados[0]
+        : diasEscalados.slice(0, -1).join(', ') + ' e ' + diasEscalados[diasEscalados.length - 1];
+
+    const msg = `Olá ${primeiroNome}! Tenho vaga para extra na ${listaDias} esta semana. Confirma disponibilidade?`;
+    const fone = '55' + telefone.replace(/\D/g, '');
+    window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 // Definir cor de velocidade
