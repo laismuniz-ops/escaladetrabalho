@@ -637,9 +637,10 @@ async def api_gerar_escala_entregadores(request: Request) -> dict:
     min_r_list = [int(form.get(f"min_rapido_{i}", 0)) for i in range(7)]
     min_n_list = [int(form.get(f"min_normal_{i}", 0)) for i in range(7)]
     sobrescrever = form.get("sobrescrever", "") == "1"
+    max_dias_semana = max(1, int(form.get("max_dias_semana", 2) or 2))
     dias_raw       = form.getlist("dias_especificos")
     dias_especificos = dias_raw if dias_raw else None
-    resultado  = models.gerar_escala_auto(ano, mes_num, totais, min_r_list, min_n_list, dias_especificos, sobrescrever)
+    resultado  = models.gerar_escala_auto(ano, mes_num, totais, min_r_list, min_n_list, dias_especificos, sobrescrever, max_dias_semana)
     return resultado
 
 @app.post("/api/entregadores/restaurar-geracao")

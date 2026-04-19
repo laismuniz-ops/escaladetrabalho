@@ -190,14 +190,12 @@
                     <div class="flex gap-1 justify-end flex-wrap">
                         <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-zap-escalar"
                                 data-id="{{ e.id }}" data-nome="{{ e.nome }}"
-                                title="Verificar disponibilidade na semana selecionada"
-                                style="color:#d97706;border-color:#f59e0b;">
+                                title="Verificar disponibilidade na semana selecionada">
                             📅 Escalar
                         </button>
                         <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-zap-confirmar"
                                 data-id="{{ e.id }}" data-nome="{{ e.nome }}"
-                                title="Confirmar presença hoje"
-                                style="color:#25d366;border-color:#25d366;">
+                                title="Confirmar presença hoje">
                             ✅ Confirmar
                         </button>
                         <form method="post" action="/api/entregadores/{{ e.id }}/mover">
@@ -346,12 +344,22 @@
                 <p id="g-dias-selecionados" class="text-xs text-brand-grey mt-1"></p>
             </div>
 
-            <!-- Sobrescrever -->
-            <div class="col-span-2 flex items-center gap-2 pt-1">
-                <input type="checkbox" id="g-sobrescrever" class="gs-check">
-                <label for="g-sobrescrever" class="text-xs font-semibold cursor-pointer">
-                    Sobrescrever escala já existente no mês
-                </label>
+            <!-- Sobrescrever + Máx dias/semana -->
+            <div class="col-span-2 flex items-center gap-6 pt-1 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="g-sobrescrever" class="gs-check">
+                    <label for="g-sobrescrever" class="text-xs font-semibold cursor-pointer">
+                        Sobrescrever escala já existente no mês
+                    </label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="g-max-dias-semana" class="text-xs font-semibold text-brand-grey whitespace-nowrap">
+                        Máx. dias/semana por entregador:
+                    </label>
+                    <input type="number" id="g-max-dias-semana" value="2" min="1" max="7"
+                           class="gs-input text-center w-14 text-xs py-1"
+                           onchange="salvarConfigGeracao()">
+                </div>
             </div>
 
             <!-- Regras -->
@@ -544,20 +552,53 @@ function atualizarLabelSemanaZap() {
     const label = document.getElementById('zap-semana-label');
     if (!sel || !sel.value) { if (label) label.textContent = ''; return; }
     const [ano, mes, dia] = sel.value.split('-').map(Number);
-    const dom = new Date(ano, mes - 1, dia);          // domingo selecionado
-    const sab = new Date(dom); sab.setDate(dom.getDate() + 6); // sábado seguinte
+    const dom = new Date(ano, mes - 1, dia);
+    const sab = new Date(dom); sab.setDate(dom.getDate() + 6);
     const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
     if (label) label.textContent = `– Sáb ${fmt(sab)}`;
+    atualizarCoresZap();
 }
 
-// Pré-seleciona o domingo da semana atual (se estiver no select)
+function atualizarCoresZap() {
+    const sel      = document.getElementById('zap-semana-ref');
+    const hojeIso  = isoLocal(new Date());
+
+    // Botões Escalar — amarelo se tiver algum dia escalado na semana selecionada
+    document.querySelectorAll('.btn-zap-escalar').forEach(btn => {
+        const eid = btn.dataset.id;
+        let temDia = false;
+        if (sel && sel.value) {
+            const [a, m, d] = sel.value.split('-').map(Number);
+            const domingo = new Date(a, m - 1, d);
+            for (let i = 0; i < 7 && !temDia; i++) {
+                const di = new Date(domingo);
+                di.setDate(domingo.getDate() + i);
+                const cell = document.querySelector(`.entr-cell[data-id="${eid}"][data-data="${isoLocal(di)}"]`);
+                if (cell && cell.dataset.status) temDia = true;
+            }
+        }
+        btn.style.color       = temDia ? '#d97706' : '';
+        btn.style.borderColor = temDia ? '#f59e0b' : '';
+    });
+
+    // Botões Confirmar — verde se tiver escalado hoje
+    document.querySelectorAll('.btn-zap-confirmar').forEach(btn => {
+        const eid  = btn.dataset.id;
+        const cell = document.querySelector(`.entr-cell[data-id="${eid}"][data-data="${hojeIso}"]`);
+        const temHoje = cell && cell.dataset.status;
+        btn.style.color       = temHoje ? '#25d366' : '';
+        btn.style.borderColor = temHoje ? '#25d366' : '';
+    });
+}
+
+// Pré-seleciona o domingo da semana atual e aplica cores
 (function () {
     const sel = document.getElementById('zap-semana-ref');
     if (!sel) return;
-    const hoje = new Date();
+    const hoje    = new Date();
     const domHoje = new Date(hoje);
-    domHoje.setDate(hoje.getDate() - hoje.getDay()); // domingo desta semana
-    const domIso = isoLocal(domHoje);
+    domHoje.setDate(hoje.getDate() - hoje.getDay());
+    const domIso  = isoLocal(domHoje);
     for (const opt of sel.options) {
         if (opt.value === domIso) { opt.selected = true; break; }
     }
@@ -619,7 +660,7 @@ function enviarWhatsAppEscalar(eid, nome, telefone) {
         ? diasEscalados[0]
         : diasEscalados.slice(0, -1).join(', ') + ' e ' + diasEscalados[diasEscalados.length - 1];
 
-    const msg = `Olá, ${primeiroNome}! Tenho vaga para extra na ${listaDias} esta semana. Confirma disponibilidade?`;
+    const msg = `Olá, ${primeiroNome}! Tenho vaga para extra no Singular Sushi na ${listaDias} esta semana. Confirma disponibilidade?`;
     abrirWhatsApp(telefone, msg);
 }
 
@@ -629,7 +670,7 @@ function enviarWhatsAppConfirmar(nome, telefone) {
         return;
     }
     const primeiroNome = nome.split(' ')[0];
-    const msg = `Olá, ${primeiroNome}. Confirma sua extra hoje? Caso não consiga me responder até 13h, precisarei escalar outro entregador para a sua vaga`;
+    const msg = `Olá, ${primeiroNome}. Confirma sua extra no Singular Sushi hoje? Caso não consiga me responder até 13h, precisarei escalar outro entregador para a sua vaga`;
     abrirWhatsApp(telefone, msg);
 }
 
@@ -725,6 +766,8 @@ function salvarConfigGeracao(mostrarFeedback = false) {
         localStorage.setItem(`gs_entr_min_n_${i}`, document.getElementById(`g-min-n-${i}`).value);
         fd.append(`min_${i}`, totalVal);
     }
+    const maxDias = document.getElementById('g-max-dias-semana')?.value || 2;
+    localStorage.setItem('gs_entr_max_dias_semana', maxDias);
     // Persiste os totais como mínimos por dia no servidor
     fetch('/api/entregadores/min-dia', { method: 'POST', body: fd }).catch(() => {});
     if (mostrarFeedback) {
@@ -747,6 +790,9 @@ function carregarConfigGeracao() {
         if (minR !== null) document.getElementById(`g-min-r-${i}`).value = minR;
         if (minN !== null) document.getElementById(`g-min-n-${i}`).value = minN;
     }
+    const maxDias = localStorage.getItem('gs_entr_max_dias_semana');
+    const elMax = document.getElementById('g-max-dias-semana');
+    if (maxDias !== null && elMax) elMax.value = maxDias;
 }
 
 // ─── Modal Gerar ────────────────────────────────────────────────────────────────
@@ -811,6 +857,7 @@ async function executarGerar() {
         for (let i = 0; i < 7; i++) fd.append(`min_rapido_${i}`, document.getElementById(`g-min-r-${i}`).value);
         for (let i = 0; i < 7; i++) fd.append(`min_normal_${i}`, document.getElementById(`g-min-n-${i}`).value);
         if (document.getElementById('g-sobrescrever').checked) fd.append('sobrescrever', '1');
+        fd.append('max_dias_semana', document.getElementById('g-max-dias-semana').value || 2);
         dias.forEach(d => fd.append('dias_especificos', d));
 
         const r = await fetch('/api/entregadores/gerar-escala', { method: 'POST', body: fd });

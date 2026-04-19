@@ -558,13 +558,14 @@ def gerar_escala_auto(
     min_normal_semana: list,           # 7 ints, mesmo índice
     dias_especificos: list = None,
     sobrescrever: bool = False,
+    max_dias_semana: int = 2,          # máx. de dias por semana Dom–Sáb por entregador
 ) -> dict:
     """
     Gera escala automática.
     - total_por_dia_semana: 7 valores, um por dia da semana (0=Seg … 6=Dom)
     - Distribui de forma equilibrada (quem trabalhou menos vai primeiro)
     - Garante mínimos de Rápidos e Normais por dia
-    - Respeita limite de 2 dias por semana Dom–Sáb por entregador
+    - Respeita limite de max_dias_semana dias por semana Dom–Sáb por entregador
       (inclui dias do mês anterior que pertencem à 1ª semana parcial)
     - dias_especificos: lista de ISO strings; None = todos os dias do mês
     """
@@ -661,7 +662,7 @@ def gerar_escala_auto(
 
         def elegivel(d, _cw=cal_week, _dow=dow, _dnum=dia.day):
             # Limite semanal (Dom–Sáb)
-            if semanas[d["id"]].get(_cw, 0) >= 2:
+            if semanas[d["id"]].get(_cw, 0) >= max_dias_semana:
                 return False
             # Restrições da obs
             restricao = dias_disponiveis.get(d["id"])
