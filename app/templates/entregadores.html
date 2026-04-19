@@ -185,11 +185,17 @@
                 <!-- Ações -->
                 <td>
                     <div class="flex gap-1 justify-end flex-wrap">
-                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-whatsapp"
+                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-zap-escalar"
                                 data-id="{{ e.id }}" data-nome="{{ e.nome }}"
-                                title="Enviar disponibilidade por WhatsApp"
+                                title="Verificar disponibilidade na semana selecionada"
                                 style="color:#25d366;border-color:#25d366;">
-                            📱 Zap
+                            📅 Escalar
+                        </button>
+                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-zap-confirmar"
+                                data-id="{{ e.id }}" data-nome="{{ e.nome }}"
+                                title="Confirmar presença hoje"
+                                style="color:#25d366;border-color:#25d366;">
+                            ✅ Confirmar
                         </button>
                         <form method="post" action="/api/entregadores/{{ e.id }}/mover">
                             <input type="hidden" name="direcao" value="up">
@@ -545,9 +551,9 @@ function atualizarLabelSemanaZap() {
     if (!input.value) { label.textContent = ''; return; }
     const [ano, mes, dia] = input.value.split('-').map(Number);
     const seg = segundaDaSemana(new Date(ano, mes - 1, dia));
-    const dom = new Date(seg); dom.setDate(seg.getDate() + 6);
+    const sab = new Date(seg); sab.setDate(seg.getDate() + 5); // Seg → Sáb
     const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-    label.textContent = `${fmt(seg)} – ${fmt(dom)}`;
+    label.textContent = `${fmt(seg)} – ${fmt(sab)}`;
 }
 
 // Inicializa com a semana atual
@@ -559,22 +565,32 @@ function atualizarLabelSemanaZap() {
     }
 })();
 
-document.querySelectorAll('.btn-whatsapp').forEach(btn => {
+// Botão Escalar — disponibilidade na semana selecionada (Seg–Sáb)
+document.querySelectorAll('.btn-zap-escalar').forEach(btn => {
     btn.addEventListener('click', () => {
         const eid  = btn.dataset.id;
         const nome = btn.dataset.nome;
         const fone = btn.closest('tr').querySelector('input[type="tel"]')?.value || '';
-        enviarWhatsAppDisponibilidade(eid, nome, fone);
+        enviarWhatsAppEscalar(eid, nome, fone);
     });
 });
 
-function enviarWhatsAppDisponibilidade(eid, nome, telefone) {
+// Botão Confirmar — confirmação de presença no dia
+document.querySelectorAll('.btn-zap-confirmar').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const nome = btn.dataset.nome;
+        const fone = btn.closest('tr').querySelector('input[type="tel"]')?.value || '';
+        enviarWhatsAppConfirmar(nome, fone);
+    });
+});
+
+function enviarWhatsAppEscalar(eid, nome, telefone) {
     if (!telefone || telefone.trim() === '') {
         alert('Cadastre o telefone de ' + nome.split(' ')[0] + ' antes de enviar.');
         return;
     }
 
-    // Determina a semana a partir do input de referência
+    // Semana de referência (Seg–Sáb = 6 dias)
     const inputRef = document.getElementById('zap-semana-ref');
     const refDate  = inputRef && inputRef.value
         ? (() => { const [a,m,d] = inputRef.value.split('-').map(Number); return new Date(a, m-1, d); })()
@@ -584,7 +600,7 @@ function enviarWhatsAppDisponibilidade(eid, nome, telefone) {
     const nomesDias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     const diasEscalados = [];
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) { // Seg=0 … Sáb=5
         const d   = new Date(seg);
         d.setDate(seg.getDate() + i);
         const iso  = isoLocal(d);
@@ -595,7 +611,7 @@ function enviarWhatsAppDisponibilidade(eid, nome, telefone) {
     }
 
     if (diasEscalados.length === 0) {
-        alert(nome.split(' ')[0] + ' não tem dias escalados na semana selecionada.');
+        alert(nome.split(' ')[0] + ' não tem dias escalados na semana selecionada (Seg–Sáb).');
         return;
     }
 
@@ -605,6 +621,20 @@ function enviarWhatsAppDisponibilidade(eid, nome, telefone) {
         : diasEscalados.slice(0, -1).join(', ') + ' e ' + diasEscalados[diasEscalados.length - 1];
 
     const msg = `Olá ${primeiroNome}! Tenho vaga para extra na ${listaDias} esta semana. Confirma disponibilidade?`;
+    abrirWhatsApp(telefone, msg);
+}
+
+function enviarWhatsAppConfirmar(nome, telefone) {
+    if (!telefone || telefone.trim() === '') {
+        alert('Cadastre o telefone de ' + nome.split(' ')[0] + ' antes de enviar.');
+        return;
+    }
+    const primeiroNome = nome.split(' ')[0];
+    const msg = `Olá, ${primeiroNome}. Confirma sua extra hoje? Caso não consiga me responder até 13h, precisarei escalar outro entregador`;
+    abrirWhatsApp(telefone, msg);
+}
+
+function abrirWhatsApp(telefone, msg) {
     const fone = '55' + telefone.replace(/\D/g, '');
     window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
