@@ -9,11 +9,14 @@
             <p class="gs-section-title">{{ ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'][data.weekday()] }}</p>
             <h1 class="text-2xl font-bold tracking-wide uppercase mt-1">{{ data.strftime('%d/%m/%Y') }}</h1>
         </div>
-        <form method="get" class="flex items-center gap-2">
-            <label class="gs-section-title">Data</label>
-            <input type="date" name="data" value="{{ data.isoformat() }}"
-                   class="gs-input w-auto" onchange="this.form.submit()">
-        </form>
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="/semana?data={{ data.isoformat() }}" class="gs-btn gs-btn-ghost text-xs whitespace-nowrap">📅 Ver semana</a>
+            <form method="get" class="flex items-center gap-2">
+                <label class="gs-section-title">Data</label>
+                <input type="date" name="data" value="{{ data.isoformat() }}"
+                       class="gs-input w-auto" onchange="this.form.submit()">
+            </form>
+        </div>
     </div>
 
     {% if alertas_dia or deficit_entr > 0 %}

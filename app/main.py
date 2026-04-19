@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 
@@ -178,6 +178,69 @@ def home(request: Request, data: Optional[str] = None) -> HTMLResponse:
              confirmados_entr=confirmados_entr, escalados_entr=escalados_entr,
              total_entr=total_entr,
              min_entr_hoje=min_entr_hoje, deficit_entr=deficit_entr),
+    )
+
+
+@app.get("/semana", response_class=HTMLResponse)
+def semana_view(request: Request, data: Optional[str] = None) -> HTMLResponse:
+    if redir := auth.verificar_permissao(request, "dia"):
+        return redir
+    ref = _parse_data(data)
+    # Domingo da semana Dom–Sáb que contém ref
+    domingo = ref - timedelta(days=(ref.weekday() + 1) % 7)
+    sabado  = domingo + timedelta(days=6)
+    feriados = models.listar_feriados_ano(ref.year)
+    minimos  = models.get_minimos()
+    min_entr_lista = models.get_min_entregadores_dia()
+    dias_data = []
+    for i in range(7):
+        dia = domingo + timedelta(days=i)
+        iso = dia.isoformat()
+        dow = dia.weekday()
+        escalados = models.escala_do_dia(iso)
+        grupos: dict = {}
+        for e in escalados:
+            grupos.setdefault(e["setor"], {}).setdefault(e["tipo"], []).append(e)
+        setores_ord = sorted(
+            grupos.keys(),
+            key=lambda s: models.SETORES_ORDEM.index(s) if s in models.SETORES_ORDEM else 99,
+        )
+        cont: dict = {s: {"MANHA": 0, "TARDE": 0} for s in ("COZINHA", "ATENDIMENTO")}
+        for e in escalados:
+            if e["setor"] in cont:
+                if "MANHA" in e["turno"]: cont[e["setor"]]["MANHA"] += 1
+                if "TARDE" in e["turno"]: cont[e["setor"]]["TARDE"] += 1
+        alertas: list = []
+        for setor, tmap in minimos.items():
+            for turno_key, dia_vals in tmap.items():
+                min_val = dia_vals.get(dow, 0)
+                if min_val > 0:
+                    atual = cont.get(setor, {}).get(turno_key, 0)
+                    if atual < min_val:
+                        alertas.append({"setor": setor, "turno": turno_key,
+                                        "atual": atual, "minimo": min_val,
+                                        "deficit": min_val - atual})
+        entr = models.escala_entregadores_do_dia(iso)
+        conf_e = sum(1 for e in entr if e["status"] == "CONFIRMADO")
+        escal_e = sum(1 for e in entr if e["status"] == "ESCALADO")
+        min_e   = min_entr_lista[dow]
+        def_e   = max(0, min_e - conf_e) if min_e > 0 else 0
+        dias_data.append({
+            "data": dia, "iso": iso,
+            "is_feriado": iso in feriados,
+            "nome_feriado": feriados.get(iso, ""),
+            "grupos": grupos, "setores": setores_ord,
+            "total_colab": len(escalados),
+            "alertas": alertas,
+            "entregadores": entr,
+            "escalados_entr": escal_e, "confirmados_entr": conf_e,
+            "min_entr": min_e, "deficit_entr": def_e,
+        })
+    return templates.TemplateResponse(
+        "semana.html",
+        _ctx(request, dias_data=dias_data, domingo=domingo, sabado=sabado,
+             semana_ant=(domingo - timedelta(days=1)).isoformat(),
+             proxima_sem=(domingo + timedelta(days=7)).isoformat()),
     )
 
 
@@ -513,12 +576,14 @@ def entregadores_page(request: Request, mes: Optional[str] = None) -> HTMLRespon
     dias = utils.dias_do_mes(ano, mes_num)
     feriados = models.listar_feriados_ano(ano)
     min_entr_lista = models.get_min_entregadores_dia()
-    # Conta entregadores (ESCALADO + CONFIRMADO) por dia — usado para destacar déficit na grade
-    contagem_por_dia: dict[str, int] = {}
+    # Conta entregadores por dia separado por status — usado na grade
+    contagem_por_dia: dict[str, dict] = {}
     for dmap in escalas.values():
         for d_iso, status in dmap.items():
             if status in ("ESCALADO", "CONFIRMADO"):
-                contagem_por_dia[d_iso] = contagem_por_dia.get(d_iso, 0) + 1
+                entry = contagem_por_dia.setdefault(d_iso, {"total": 0, "E": 0, "C": 0})
+                entry["total"] += 1
+                entry["E" if status == "ESCALADO" else "C"] += 1
     return templates.TemplateResponse(
         "entregadores.html",
         _ctx(request, lista=lista, escalas=escalas, dias=dias,

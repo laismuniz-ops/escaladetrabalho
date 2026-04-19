@@ -46,17 +46,22 @@
                 {% for d in dias %}
                 {% set iso_entr = d.isoformat() %}
                 {% set is_fer = iso_entr in feriados %}
-                {% set count_dia = contagem_por_dia.get(iso_entr, 0) %}
+                {% set c = contagem_por_dia.get(iso_entr, {"total": 0, "E": 0, "C": 0}) %}
+                {% set count_e = c.E %}
+                {% set count_c = c.C %}
+                {% set count_total = c.total %}
                 {% set min_dia = min_entr_lista[d.weekday()] %}
-                {% set deficit_col = min_dia > 0 and count_dia < min_dia %}
+                {% set deficit_col = min_dia > 0 and count_total < min_dia %}
                 <th class="sticky top-0 z-20 px-1 py-1.5 text-center font-bold border-b border-brand-border
                     {% if is_fer %}feriado-header{% else %}bg-white text-brand-grey{% endif %}"
                     data-data="{{ iso_entr }}" data-min="{{ min_dia }}">
                     {% if is_fer %}<div class="text-[0.48rem] text-green-700 leading-tight font-semibold">{{ feriados[iso_entr][:10] }}</div>{% endif %}
                     <div class="text-[0.55rem] tracking-wide leading-none">{{ dia_semana_curto(d) }}</div>
                     <div class="col-dia-num text-[0.7rem] font-black leading-snug {% if deficit_col %}text-red-600{% endif %}">{{ d.day }}</div>
-                    <div class="col-count text-[0.48rem] leading-tight font-semibold {% if deficit_col %}text-red-500{% elif min_dia > 0 %}text-green-600{% endif %}">
-                        {% if min_dia > 0 %}{{ count_dia }}/{{ min_dia }}{% endif %}
+                    <div class="col-count text-[0.48rem] leading-tight">
+                        {% if count_e > 0 %}<span style="color:#d97706;font-weight:700;">{{ count_e }}E</span> {% endif %}
+                        {% if count_c > 0 %}<span style="color:#15803d;font-weight:700;">{{ count_c }}C</span>{% endif %}
+                        {% if min_dia > 0 %}<span style="color:{% if deficit_col %}#ef4444{% else %}#9ca3af{% endif %};font-weight:600;"> /{{ min_dia }}</span>{% endif %}
                     </div>
                 </th>
                 {% endfor %}
@@ -940,14 +945,11 @@ function atualizarContadoresColunas(isos) {
     isos.forEach(iso => {
         const th  = document.querySelector(`th[data-data="${iso}"]`);
         if (!th) return;
-        const min = parseInt(th.dataset.min || '0');
-
-        const count = document.querySelectorAll(
-            `.entr-cell[data-data="${iso}"][data-status="ESCALADO"],` +
-            `.entr-cell[data-data="${iso}"][data-status="CONFIRMADO"]`
-        ).length;
-
-        const deficit = min > 0 && count < min;
+        const min    = parseInt(th.dataset.min || '0');
+        const countE = document.querySelectorAll(`.entr-cell[data-data="${iso}"][data-status="ESCALADO"]`).length;
+        const countC = document.querySelectorAll(`.entr-cell[data-data="${iso}"][data-status="CONFIRMADO"]`).length;
+        const total  = countE + countC;
+        const deficit = min > 0 && total < min;
 
         const numEl   = th.querySelector('.col-dia-num');
         const countEl = th.querySelector('.col-count');
@@ -955,9 +957,11 @@ function atualizarContadoresColunas(isos) {
         if (numEl) numEl.classList.toggle('text-red-600', deficit);
 
         if (countEl) {
-            countEl.textContent = min > 0 ? `${count}/${min}` : '';
-            countEl.className = 'col-count text-[0.48rem] leading-tight font-semibold ' +
-                (min === 0 ? '' : deficit ? 'text-red-500' : 'text-green-600');
+            let html = '';
+            if (countE > 0) html += `<span style="color:#d97706;font-weight:700">${countE}E</span> `;
+            if (countC > 0) html += `<span style="color:#15803d;font-weight:700">${countC}C</span>`;
+            if (min > 0)    html += `<span style="color:${deficit ? '#ef4444' : '#9ca3af'};font-weight:600"> /${min}</span>`;
+            countEl.innerHTML = html;
         }
     });
 }

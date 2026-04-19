@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Equipe da semana — GS Escala de Trabalho{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <!-- Cabeçalho -->
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+            <p class="gs-section-title">Equipe da semana</p>
+            <h1 class="text-2xl font-bold tracking-wide uppercase mt-1">
+                {{ domingo.strftime('%d/%m') }} – {{ sabado.strftime('%d/%m/%Y') }}
+            </h1>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="/semana?data={{ semana_ant }}" class="gs-btn gs-btn-ghost text-xs">← Anterior</a>
+            <a href="/semana" class="gs-btn gs-btn-ghost text-xs">Esta semana</a>
+            <a href="/semana?data={{ proxima_sem }}" class="gs-btn gs-btn-ghost text-xs">Próxima →</a>
+        </div>
+    </div>
+
+    <!-- Grade de dias -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+    {% set nomes_dia = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'] %}
+    {% for d in dias_data %}
+    <div class="gs-card overflow-hidden flex flex-col
+        {% if d.is_feriado %}ring-1 ring-green-300{% endif %}
+        {% if d.alertas or d.deficit_entr > 0 %}ring-1 ring-red-200{% endif %}">
+
+        <!-- Header do dia -->
+        <a href="/?data={{ d.iso }}"
+           class="flex items-center justify-between px-4 py-3 border-b border-brand-border hover:bg-gray-50 transition">
+            <div>
+                <p class="gs-section-title text-[0.58rem]">{{ nomes_dia[d.data.weekday()] }}</p>
+                <p class="text-xl font-black leading-tight">{{ d.data.strftime('%d/%m') }}</p>
+                {% if d.is_feriado %}
+                <p class="text-[0.58rem] text-green-700 font-semibold leading-tight">{{ d.nome_feriado[:22] }}</p>
+                {% endif %}
+            </div>
+            <div class="text-right space-y-1">
+                {% if d.total_colab > 0 %}
+                <div class="text-xs font-bold text-brand-dark">{{ d.total_colab }} colab.</div>
+                {% endif %}
+                {% if d.escalados_entr > 0 or d.confirmados_entr > 0 %}
+                <div class="flex gap-1 justify-end">
+                    <span class="entr-ESCALADO px-1.5 py-0.5 rounded text-[0.6rem] font-bold">{{ d.escalados_entr }}E</span>
+                    <span class="entr-CONFIRMADO px-1.5 py-0.5 rounded text-[0.6rem] font-bold">{{ d.confirmados_entr }}C</span>
+                </div>
+                {% endif %}
+            </div>
+        </a>
+
+        <!-- Alertas -->
+        {% if d.alertas or d.deficit_entr > 0 %}
+        <div class="px-4 py-2 bg-red-50 border-b border-red-100 space-y-0.5">
+            {% for a in d.alertas %}
+            <p class="text-[0.68rem] text-red-600 font-semibold">
+                ! {{ a.setor | capitalize }} {{ 'Manhã' if a.turno == 'MANHA' else 'Tarde' }}: {{ a.atual }}/{{ a.minimo }} (falta {{ a.deficit }})
+            </p>
+            {% endfor %}
+            {% if d.deficit_entr > 0 %}
+            <p class="text-[0.68rem] text-red-600 font-semibold">
+                ! Entregadores confirm.: {{ d.confirmados_entr }}/{{ d.min_entr }}
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Colaboradores -->
+        {% if d.total_colab > 0 %}
+        <div class="px-4 py-3 space-y-3 flex-1">
+            {% for setor in d.setores %}
+            {% if d.grupos.get(setor) %}
+            <div>
+                <p class="text-[0.55rem] font-bold tracking-widest uppercase text-brand-grey mb-1">{{ setor }}</p>
+                {% for tipo in ['CONTRATADO', 'EXTRA'] %}
+                {% for p in d.grupos[setor].get(tipo, []) %}
+                <div class="flex items-center justify-between py-0.5 gap-2">
+                    <span class="text-xs font-medium truncate">{{ p.nome }}</span>
+                    <span class="turno-{{ p.turno }} px-1.5 py-0.5 rounded text-[0.58rem] font-bold shrink-0">{{ label_turno(p.turno) }}</span>
+                </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Entregadores -->
+        {% if d.entregadores %}
+        <div class="px-4 py-3 border-t border-brand-border">
+            <p class="text-[0.55rem] font-bold tracking-widest uppercase text-brand-grey mb-1">Entregadores</p>
+            {% for e in d.entregadores %}
+            <div class="flex items-center justify-between py-0.5 gap-2">
+                <span class="text-xs font-medium truncate
+                    {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}">
+                    {{ e.nome }}
+                </span>
+                <span class="{% if e.status == 'CONFIRMADO' %}entr-CONFIRMADO{% else %}entr-ESCALADO{% endif %} px-1.5 py-0.5 rounded text-[0.58rem] font-bold shrink-0">
+                    {{ 'C' if e.status == 'CONFIRMADO' else 'E' }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if d.total_colab == 0 and not d.entregadores %}
+        <div class="px-4 py-6 text-center text-xs text-brand-grey flex-1">Ninguém escalado</div>
+        {% endif %}
+
+    </div>
+    {% endfor %}
+    </div>
+
+</div>
+{% endblock %}
