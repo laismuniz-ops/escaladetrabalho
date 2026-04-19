@@ -112,7 +112,7 @@
                 <button type="submit" class="gs-btn gs-btn-primary whitespace-nowrap">+ Adicionar</button>
             </form>
             <div class="flex items-center gap-2 text-xs text-brand-grey whitespace-nowrap">
-                <span class="gs-section-title">📅 Semana do Zap:</span>
+                <span class="gs-section-title">Semana da escala:</span>
                 <select id="zap-semana-ref" class="gs-input text-xs py-1 w-auto" onchange="atualizarLabelSemanaZap()">
                     {% for d in dias %}
                     {% if d.weekday() == 6 %}
