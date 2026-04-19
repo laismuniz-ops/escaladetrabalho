@@ -109,11 +109,14 @@
                 <button type="submit" class="gs-btn gs-btn-primary whitespace-nowrap">+ Adicionar</button>
             </form>
             <div class="flex items-center gap-2 text-xs text-brand-grey whitespace-nowrap">
-                <span class="gs-section-title">📱 Semana do Zap:</span>
-                <input type="date" id="zap-semana-ref"
-                       class="gs-input text-xs py-1 w-auto"
-                       title="Escolha qualquer dia da semana desejada"
-                       onchange="atualizarLabelSemanaZap()">
+                <span class="gs-section-title">📅 Semana do Zap:</span>
+                <select id="zap-semana-ref" class="gs-input text-xs py-1 w-auto" onchange="atualizarLabelSemanaZap()">
+                    {% for d in dias %}
+                    {% if d.weekday() == 6 %}
+                    <option value="{{ d.isoformat() }}">Dom {{ d.strftime('%d/%m') }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
                 <span id="zap-semana-label" class="font-semibold text-brand-dark"></span>
             </div>
         </div>
@@ -188,7 +191,7 @@
                         <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-zap-escalar"
                                 data-id="{{ e.id }}" data-nome="{{ e.nome }}"
                                 title="Verificar disponibilidade na semana selecionada"
-                                style="color:#25d366;border-color:#25d366;">
+                                style="color:#d97706;border-color:#f59e0b;">
                             📅 Escalar
                         </button>
                         <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-zap-confirmar"
@@ -532,40 +535,36 @@ async function salvarObs(id, texto) {
 
 // ─── WhatsApp — verificar disponibilidade ───────────────────────────────────────
 
-// Retorna a segunda-feira da semana de uma data qualquer
-function segundaDaSemana(data) {
-    const d = new Date(data);
-    d.setHours(0, 0, 0, 0);
-    const dow = d.getDay(); // 0=Dom
-    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-    return d;
-}
-
 function isoLocal(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function atualizarLabelSemanaZap() {
-    const input = document.getElementById('zap-semana-ref');
+    const sel   = document.getElementById('zap-semana-ref');
     const label = document.getElementById('zap-semana-label');
-    if (!input.value) { label.textContent = ''; return; }
-    const [ano, mes, dia] = input.value.split('-').map(Number);
-    const seg = segundaDaSemana(new Date(ano, mes - 1, dia));
-    const sab = new Date(seg); sab.setDate(seg.getDate() + 5); // Seg → Sáb
+    if (!sel || !sel.value) { if (label) label.textContent = ''; return; }
+    const [ano, mes, dia] = sel.value.split('-').map(Number);
+    const dom = new Date(ano, mes - 1, dia);          // domingo selecionado
+    const sab = new Date(dom); sab.setDate(dom.getDate() + 6); // sábado seguinte
     const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-    label.textContent = `${fmt(seg)} – ${fmt(sab)}`;
+    if (label) label.textContent = `– Sáb ${fmt(sab)}`;
 }
 
-// Inicializa com a semana atual
+// Pré-seleciona o domingo da semana atual (se estiver no select)
 (function () {
-    const input = document.getElementById('zap-semana-ref');
-    if (input) {
-        input.value = isoLocal(new Date());
-        atualizarLabelSemanaZap();
+    const sel = document.getElementById('zap-semana-ref');
+    if (!sel) return;
+    const hoje = new Date();
+    const domHoje = new Date(hoje);
+    domHoje.setDate(hoje.getDate() - hoje.getDay()); // domingo desta semana
+    const domIso = isoLocal(domHoje);
+    for (const opt of sel.options) {
+        if (opt.value === domIso) { opt.selected = true; break; }
     }
+    atualizarLabelSemanaZap();
 })();
 
-// Botão Escalar — disponibilidade na semana selecionada (Seg–Sáb)
+// Botão Escalar — disponibilidade na semana Dom–Sáb selecionada
 document.querySelectorAll('.btn-zap-escalar').forEach(btn => {
     btn.addEventListener('click', () => {
         const eid  = btn.dataset.id;
@@ -590,20 +589,20 @@ function enviarWhatsAppEscalar(eid, nome, telefone) {
         return;
     }
 
-    // Semana de referência (Seg–Sáb = 6 dias)
-    const inputRef = document.getElementById('zap-semana-ref');
-    const refDate  = inputRef && inputRef.value
-        ? (() => { const [a,m,d] = inputRef.value.split('-').map(Number); return new Date(a, m-1, d); })()
-        : new Date();
-    const seg = segundaDaSemana(refDate);
+    // Domingo da semana selecionada no select
+    const sel = document.getElementById('zap-semana-ref');
+    if (!sel || !sel.value) { alert('Selecione uma semana.'); return; }
+    const [a, m, dd] = sel.value.split('-').map(Number);
+    const domingo = new Date(a, m - 1, dd); // Dom
+    domingo.setHours(0, 0, 0, 0);
 
     const nomesDias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     const diasEscalados = [];
 
-    for (let i = 0; i < 6; i++) { // Seg=0 … Sáb=5
-        const d   = new Date(seg);
-        d.setDate(seg.getDate() + i);
-        const iso  = isoLocal(d);
+    for (let i = 0; i < 7; i++) { // Dom=0 … Sáb=6
+        const d  = new Date(domingo);
+        d.setDate(domingo.getDate() + i);
+        const iso = isoLocal(d);
         const cell = document.querySelector(`.entr-cell[data-id="${eid}"][data-data="${iso}"]`);
         if (cell && cell.dataset.status && cell.dataset.status !== '') {
             diasEscalados.push(`${nomesDias[d.getDay()]} (${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')})`);
@@ -611,7 +610,7 @@ function enviarWhatsAppEscalar(eid, nome, telefone) {
     }
 
     if (diasEscalados.length === 0) {
-        alert(nome.split(' ')[0] + ' não tem dias escalados na semana selecionada (Seg–Sáb).');
+        alert(nome.split(' ')[0] + ' não tem dias escalados na semana selecionada (Dom–Sáb).');
         return;
     }
 
@@ -620,7 +619,7 @@ function enviarWhatsAppEscalar(eid, nome, telefone) {
         ? diasEscalados[0]
         : diasEscalados.slice(0, -1).join(', ') + ' e ' + diasEscalados[diasEscalados.length - 1];
 
-    const msg = `Olá ${primeiroNome}! Tenho vaga para extra na ${listaDias} esta semana. Confirma disponibilidade?`;
+    const msg = `Olá, ${primeiroNome}! Tenho vaga para extra na ${listaDias} esta semana. Confirma disponibilidade?`;
     abrirWhatsApp(telefone, msg);
 }
 
@@ -630,7 +629,7 @@ function enviarWhatsAppConfirmar(nome, telefone) {
         return;
     }
     const primeiroNome = nome.split(' ')[0];
-    const msg = `Olá, ${primeiroNome}. Confirma sua extra hoje? Caso não consiga me responder até 13h, precisarei escalar outro entregador`;
+    const msg = `Olá, ${primeiroNome}. Confirma sua extra hoje? Caso não consiga me responder até 13h, precisarei escalar outro entregador para a sua vaga`;
     abrirWhatsApp(telefone, msg);
 }
 
