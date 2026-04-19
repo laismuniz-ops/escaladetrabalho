@@ -50,11 +50,14 @@
                 {% set min_dia = min_entr_lista[d.weekday()] %}
                 {% set deficit_col = min_dia > 0 and count_dia < min_dia %}
                 <th class="sticky top-0 z-20 px-1 py-1.5 text-center font-bold border-b border-brand-border
-                    {% if is_fer %}feriado-header{% else %}bg-white text-brand-grey{% endif %}">
+                    {% if is_fer %}feriado-header{% else %}bg-white text-brand-grey{% endif %}"
+                    data-data="{{ iso_entr }}" data-min="{{ min_dia }}">
                     {% if is_fer %}<div class="text-[0.48rem] text-green-700 leading-tight font-semibold">{{ feriados[iso_entr][:10] }}</div>{% endif %}
                     <div class="text-[0.55rem] tracking-wide leading-none">{{ dia_semana_curto(d) }}</div>
-                    <div class="text-[0.7rem] font-black leading-snug {% if deficit_col %}text-red-600{% endif %}">{{ d.day }}</div>
-                    {% if deficit_col %}<div class="text-[0.48rem] text-red-500 leading-tight font-semibold">{{ count_dia }}/{{ min_dia }}</div>{% endif %}
+                    <div class="col-dia-num text-[0.7rem] font-black leading-snug {% if deficit_col %}text-red-600{% endif %}">{{ d.day }}</div>
+                    <div class="col-count text-[0.48rem] leading-tight font-semibold {% if deficit_col %}text-red-500{% elif min_dia > 0 %}text-green-600{% endif %}">
+                        {% if min_dia > 0 %}{{ count_dia }}/{{ min_dia }}{% endif %}
+                    </div>
                 </th>
                 {% endfor %}
             </tr>
@@ -509,6 +512,7 @@ menu.querySelectorAll('button[data-status]').forEach(btn => {
                 celulaAtiva.textContent = '';
             }
         } catch { alert('Erro ao salvar.'); }
+        atualizarContadoresColunas([celulaAtiva.dataset.data]);
         verificarExcessoSemanal();
         menu.style.display = 'none';
         celulaAtiva = null;
@@ -660,7 +664,7 @@ function enviarWhatsAppEscalar(eid, nome, telefone) {
         ? diasEscalados[0]
         : diasEscalados.slice(0, -1).join(', ') + ' e ' + diasEscalados[diasEscalados.length - 1];
 
-    const msg = `Olá, ${primeiroNome}! Tenho vaga para extra no Singular Sushi na ${listaDias} esta semana. Confirma disponibilidade?`;
+    const msg = `Olá, ${primeiroNome}. Tenho vaga para extra no Singular Sushi na ${listaDias} esta semana. Você tem disponibilidade?`;
     abrirWhatsApp(telefone, msg);
 }
 
@@ -670,7 +674,7 @@ function enviarWhatsAppConfirmar(nome, telefone) {
         return;
     }
     const primeiroNome = nome.split(' ')[0];
-    const msg = `Olá, ${primeiroNome}. Confirma sua extra no Singular Sushi hoje? Caso não consiga me responder até 13h, precisarei escalar outro entregador para a sua vaga`;
+    const msg = `Olá, ${primeiroNome}. Confirma sua extra no Singular Sushi hoje?`;
     abrirWhatsApp(telefone, msg);
 }
 
@@ -931,6 +935,33 @@ function verificarExcessoSemanal() {
     });
 }
 
+// ─── Atualiza contadores no header de cada coluna (dia) ──────────────────────
+function atualizarContadoresColunas(isos) {
+    isos.forEach(iso => {
+        const th  = document.querySelector(`th[data-data="${iso}"]`);
+        if (!th) return;
+        const min = parseInt(th.dataset.min || '0');
+
+        const count = document.querySelectorAll(
+            `.entr-cell[data-data="${iso}"][data-status="ESCALADO"],` +
+            `.entr-cell[data-data="${iso}"][data-status="CONFIRMADO"]`
+        ).length;
+
+        const deficit = min > 0 && count < min;
+
+        const numEl   = th.querySelector('.col-dia-num');
+        const countEl = th.querySelector('.col-count');
+
+        if (numEl) numEl.classList.toggle('text-red-600', deficit);
+
+        if (countEl) {
+            countEl.textContent = min > 0 ? `${count}/${min}` : '';
+            countEl.className = 'col-count text-[0.48rem] leading-tight font-semibold ' +
+                (min === 0 ? '' : deficit ? 'text-red-500' : 'text-green-600');
+        }
+    });
+}
+
 // ─── Atualiza células da grade após geração (sem reload) ─────────────────────
 function atualizarCelulasGeradas(diasProcessados, escaladosPorDia) {
     diasProcessados.forEach(iso => {
@@ -950,6 +981,7 @@ function atualizarCelulasGeradas(diasProcessados, escaladosPorDia) {
             }
         });
     }
+    atualizarContadoresColunas(diasProcessados);
     verificarExcessoSemanal();
 }
 
