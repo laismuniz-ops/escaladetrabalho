@@ -143,36 +143,33 @@
             </thead>
             <tbody>
             {% for e in lista %}
-            <tr class="{% if not e.ativo %}opacity-50{% endif %}">
-                <!-- Nome com cor — editável inline -->
+            <tr class="{% if not e.ativo %}opacity-50{% endif %}" data-eid="{{ e.id }}">
+                <!-- Nome -->
                 <td style="min-width:160px">
-                    <input type="text"
-                           class="gs-input text-xs py-1 font-semibold w-full
-                               {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}"
-                           style="font-size:0.78rem;"
-                           value="{{ e.nome }}"
-                           onblur="salvarNomeEntr({{ e.id }}, this)"
-                           onkeydown="if(event.key==='Enter') this.blur()">
+                    <span class="entr-val text-xs font-semibold
+                        {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}"
+                        data-field="nome">{{ e.nome }}</span>
+                    <input type="text" class="gs-input text-xs py-1 font-semibold entr-inp hidden w-full"
+                           style="font-size:0.78rem;" value="{{ e.nome }}" data-field="nome"
+                           onkeydown="if(event.key==='Enter') salvarEntr({{ e.id }})">
                 </td>
 
-                <!-- Telefone inline -->
+                <!-- Telefone -->
                 <td style="min-width:130px">
-                    <input type="tel"
-                           class="gs-input text-xs py-1"
-                           style="font-size:0.78rem;"
-                           value="{{ e.telefone or '' }}"
-                           placeholder="(00) 00000-0000"
-                           onblur="salvarTelefone({{ e.id }}, this.value)">
+                    <span class="entr-val text-xs text-brand-grey" data-field="telefone">{{ e.telefone or '' }}</span>
+                    <input type="tel" class="gs-input text-xs py-1 entr-inp hidden"
+                           style="font-size:0.78rem;" value="{{ e.telefone or '' }}"
+                           data-field="telefone" placeholder="(00) 00000-0000"
+                           onkeydown="if(event.key==='Enter') salvarEntr({{ e.id }})">
                 </td>
 
-                <!-- Obs inline -->
+                <!-- Obs -->
                 <td style="min-width:150px">
-                    <input type="text"
-                           class="gs-input text-xs py-1"
-                           style="font-size:0.78rem;"
-                           value="{{ e.obs or '' }}"
-                           placeholder="Observação..."
-                           onblur="salvarObs({{ e.id }}, this.value)">
+                    <span class="entr-val text-xs text-brand-grey" data-field="obs">{{ e.obs or '' }}</span>
+                    <input type="text" class="gs-input text-xs py-1 entr-inp hidden"
+                           style="font-size:0.78rem;" value="{{ e.obs or '' }}"
+                           data-field="obs" placeholder="Observação..."
+                           onkeydown="if(event.key==='Enter') salvarEntr({{ e.id }})">
                 </td>
 
                 <!-- Velocidade -->
@@ -202,6 +199,13 @@
                 <!-- Ações -->
                 <td>
                     <div class="flex gap-1 justify-end flex-wrap">
+                        <!-- Editar / Salvar / Cancelar -->
+                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 entr-btn-edit"
+                                onclick="editarEntr({{ e.id }})">✏ Editar</button>
+                        <button class="gs-btn gs-btn-primary text-xs py-1 px-2 entr-btn-save hidden"
+                                onclick="salvarEntr({{ e.id }})">✓ Salvar</button>
+                        <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 entr-btn-cancel hidden"
+                                onclick="cancelarEntr({{ e.id }})">✕</button>
                         <button class="gs-btn gs-btn-ghost text-xs py-1 px-2 btn-zap-escalar"
                                 data-id="{{ e.id }}" data-nome="{{ e.nome }}"
                                 title="Verificar disponibilidade na semana selecionada">
@@ -542,33 +546,69 @@ document.querySelectorAll('.btn-toggle-entr').forEach(btn => {
     });
 });
 
-// Salvar nome
-async function salvarNomeEntr(id, el) {
-    const nome = el.value.trim();
-    if (!nome) { el.value = el.defaultValue; return; } // não permite vazio
-    const fd = new FormData();
-    fd.append('nome', nome);
-    const resp = await fetch(`/api/entregadores/${id}/nome`, { method: 'POST', body: fd });
-    if (resp.ok) {
-        el.defaultValue = nome; // atualiza o valor padrão para rollback futuro
-    } else {
-        el.value = el.defaultValue; // reverte se der erro
-        alert('Erro ao salvar nome.');
+// ─── Edição de cadastro (nome, telefone, obs) ───────────────────────────────
+
+function editarEntr(id) {
+    const tr = document.querySelector(`tr[data-eid="${id}"]`);
+    tr.querySelectorAll('.entr-val').forEach(el => el.classList.add('hidden'));
+    tr.querySelectorAll('.entr-inp').forEach(el => el.classList.remove('hidden'));
+    tr.querySelector('.entr-btn-edit').classList.add('hidden');
+    tr.querySelector('.entr-btn-save').classList.remove('hidden');
+    tr.querySelector('.entr-btn-cancel').classList.remove('hidden');
+    tr.querySelector('.entr-inp[data-field="nome"]').focus();
+}
+
+function cancelarEntr(id) {
+    const tr = document.querySelector(`tr[data-eid="${id}"]`);
+    tr.querySelectorAll('.entr-inp').forEach(el => { el.value = el.defaultValue; });
+    tr.querySelectorAll('.entr-val').forEach(el => el.classList.remove('hidden'));
+    tr.querySelectorAll('.entr-inp').forEach(el => el.classList.add('hidden'));
+    tr.querySelector('.entr-btn-edit').classList.remove('hidden');
+    tr.querySelector('.entr-btn-save').classList.add('hidden');
+    tr.querySelector('.entr-btn-cancel').classList.add('hidden');
+}
+
+async function salvarEntr(id) {
+    const tr = document.querySelector(`tr[data-eid="${id}"]`);
+    const nomeInp = tr.querySelector('.entr-inp[data-field="nome"]');
+    const telInp  = tr.querySelector('.entr-inp[data-field="telefone"]');
+    const obsInp  = tr.querySelector('.entr-inp[data-field="obs"]');
+    const nome    = nomeInp.value.trim();
+    const tel     = telInp.value.trim();
+    const obs     = obsInp.value.trim();
+
+    if (!nome) { alert('O nome não pode estar vazio.'); nomeInp.focus(); return; }
+
+    try {
+        const fd1 = new FormData(); fd1.append('nome', nome);
+        const fd2 = new FormData(); fd2.append('telefone', tel);
+        const fd3 = new FormData(); fd3.append('texto', obs);
+        await Promise.all([
+            fetch(`/api/entregadores/${id}/nome`,     { method: 'POST', body: fd1 }),
+            fetch(`/api/entregadores/${id}/telefone`, { method: 'POST', body: fd2 }),
+            fetch(`/api/entregadores/${id}/obs`,      { method: 'POST', body: fd3 }),
+        ]);
+
+        // Atualiza spans de exibição
+        tr.querySelector('.entr-val[data-field="nome"]').textContent     = nome;
+        tr.querySelector('.entr-val[data-field="telefone"]').textContent = tel;
+        tr.querySelector('.entr-val[data-field="obs"]').textContent      = obs;
+
+        // Atualiza defaultValue para o cancelar funcionar depois
+        nomeInp.defaultValue = nome;
+        telInp.defaultValue  = tel;
+        obsInp.defaultValue  = obs;
+
+        // Atualiza o data-nome nos botões de WhatsApp
+        const btnE = tr.querySelector('.btn-zap-escalar');
+        const btnC = tr.querySelector('.btn-zap-confirmar');
+        if (btnE) btnE.dataset.nome = nome;
+        if (btnC) btnC.dataset.nome = nome;
+
+        cancelarEntr(id); // volta para modo leitura
+    } catch (_) {
+        alert('Erro ao salvar. Tente novamente.');
     }
-}
-
-// Salvar telefone
-async function salvarTelefone(id, valor) {
-    const fd = new FormData();
-    fd.append('telefone', valor);
-    await fetch(`/api/entregadores/${id}/telefone`, { method: 'POST', body: fd });
-}
-
-// Salvar observação
-async function salvarObs(id, texto) {
-    const fd = new FormData();
-    fd.append('texto', texto);
-    await fetch(`/api/entregadores/${id}/obs`, { method: 'POST', body: fd });
 }
 
 // ─── WhatsApp — verificar disponibilidade ───────────────────────────────────────
