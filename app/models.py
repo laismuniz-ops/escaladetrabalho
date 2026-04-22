@@ -248,8 +248,9 @@ def get_minimos() -> dict:
     """Retorna {setor: {turno: {dia_semana: minimo}}}
     dia_semana: 0=Segunda, 1=Terça, ..., 6=Domingo."""
     resultado: dict = {
-        "COZINHA":     {"MANHA": {i: 0 for i in range(7)}, "TARDE": {i: 0 for i in range(7)}},
-        "ATENDIMENTO": {"MANHA": {i: 0 for i in range(7)}, "TARDE": {i: 0 for i in range(7)}},
+        "COZINHA":        {"MANHA": {i: 0 for i in range(7)}, "TARDE": {i: 0 for i in range(7)}},
+        "ATENDIMENTO":    {"MANHA": {i: 0 for i in range(7)}, "TARDE": {i: 0 for i in range(7)}},
+        "ADMINISTRATIVO": {"MANHA": {i: 0 for i in range(7)}, "TARDE": {i: 0 for i in range(7)}},
     }
     with db_cursor() as cur:
         cur.execute("SELECT setor, turno, dia_semana, minimo FROM minimos_escala")

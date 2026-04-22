@@ -144,9 +144,15 @@
             <tbody>
             {% for e in lista %}
             <tr class="{% if not e.ativo %}opacity-50{% endif %}">
-                <!-- Nome com cor -->
-                <td class="font-semibold {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}">
-                    {{ e.nome }}
+                <!-- Nome com cor — editável inline -->
+                <td style="min-width:160px">
+                    <input type="text"
+                           class="gs-input text-xs py-1 font-semibold w-full
+                               {% if e.cor == 'RAPIDO' %}entr-nome-rapido{% elif e.cor == 'NORMAL' %}entr-nome-normal{% endif %}"
+                           style="font-size:0.78rem;"
+                           value="{{ e.nome }}"
+                           onblur="salvarNomeEntr({{ e.id }}, this)"
+                           onkeydown="if(event.key==='Enter') this.blur()">
                 </td>
 
                 <!-- Telefone inline -->
@@ -535,6 +541,21 @@ document.querySelectorAll('.btn-toggle-entr').forEach(btn => {
         if (r.ok) location.reload();
     });
 });
+
+// Salvar nome
+async function salvarNomeEntr(id, el) {
+    const nome = el.value.trim();
+    if (!nome) { el.value = el.defaultValue; return; } // não permite vazio
+    const fd = new FormData();
+    fd.append('nome', nome);
+    const resp = await fetch(`/api/entregadores/${id}/nome`, { method: 'POST', body: fd });
+    if (resp.ok) {
+        el.defaultValue = nome; // atualiza o valor padrão para rollback futuro
+    } else {
+        el.value = el.defaultValue; // reverte se der erro
+        alert('Erro ao salvar nome.');
+    }
+}
 
 // Salvar telefone
 async function salvarTelefone(id, valor) {

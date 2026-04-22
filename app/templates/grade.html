@@ -55,7 +55,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for setor_nome, setor_key in [('Cozinha','COZINHA'), ('Atendimento','ATENDIMENTO')] %}
+                        {% for setor_nome, setor_key in [('Cozinha','COZINHA'), ('Atendimento','ATENDIMENTO'), ('Administrativo','ADMINISTRATIVO')] %}
                         {% for turno_nome, turno_key in [('Manhã','MANHA'), ('Tarde','TARDE')] %}
                         <tr>
                             <td class="pr-5 py-1 whitespace-nowrap">
@@ -161,7 +161,7 @@
 <script>
 (function() {
     const tip = document.getElementById('alerta-tooltip');
-    const NOMES_SETOR = { COZINHA: 'Cozinha', ATENDIMENTO: 'Atendimento' };
+    const NOMES_SETOR = { COZINHA: 'Cozinha', ATENDIMENTO: 'Atendimento', ADMINISTRATIVO: 'Administrativo' };
     const NOMES_TURNO = { MANHA: 'Manhã', TARDE: 'Tarde' };
 
     document.querySelectorAll('.th-alerta').forEach(th => {

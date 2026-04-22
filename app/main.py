@@ -141,7 +141,7 @@ def home(request: Request, data: Optional[str] = None) -> HTMLResponse:
     minimos = models.get_minimos()
     dow_dia = dia.weekday()  # 0=Seg, 6=Dom
     contagens_dia: dict[str, dict[str, int]] = {
-        s: {"MANHA": 0, "TARDE": 0} for s in ("COZINHA", "ATENDIMENTO")
+        s: {"MANHA": 0, "TARDE": 0} for s in ("COZINHA", "ATENDIMENTO", "ADMINISTRATIVO")
     }
     for e in escalados:
         if e["setor"] in contagens_dia:
@@ -205,7 +205,7 @@ def semana_view(request: Request, data: Optional[str] = None) -> HTMLResponse:
             grupos.keys(),
             key=lambda s: models.SETORES_ORDEM.index(s) if s in models.SETORES_ORDEM else 99,
         )
-        cont: dict = {s: {"MANHA": 0, "TARDE": 0} for s in ("COZINHA", "ATENDIMENTO")}
+        cont: dict = {s: {"MANHA": 0, "TARDE": 0} for s in ("COZINHA", "ATENDIMENTO", "ADMINISTRATIVO")}
         for e in escalados:
             if e["setor"] in cont:
                 if "MANHA" in e["turno"]: cont[e["setor"]]["MANHA"] += 1
@@ -270,7 +270,7 @@ def grade(request: Request, mes: Optional[str] = None, tipo: Optional[str] = Non
     for dia in dias:
         iso = dia.isoformat()
         cont: dict[str, dict[str, int]] = {
-            s: {"MANHA": 0, "TARDE": 0} for s in ("COZINHA", "ATENDIMENTO")
+            s: {"MANHA": 0, "TARDE": 0} for s in ("COZINHA", "ATENDIMENTO", "ADMINISTRATIVO")
         }
         for f in todos_func:
             if f["setor"] not in cont:
@@ -310,7 +310,7 @@ async def salvar_minimos(request: Request) -> RedirectResponse:
         raise HTTPException(401, "Não autenticado")
     form = await request.form()
     mes = str(form.get("mes", ""))
-    for setor in ("COZINHA", "ATENDIMENTO"):
+    for setor in ("COZINHA", "ATENDIMENTO", "ADMINISTRATIVO"):
         for turno in ("MANHA", "TARDE"):
             for dia in range(7):
                 key = f"min_{setor}_{turno}_{dia}"
@@ -648,6 +648,17 @@ def api_set_status_entregador(
     if not auth.get_usuario_sessao(request):
         raise HTTPException(401, "Não autenticado")
     models.set_status_entregador(entregador_id, data, status or None)
+    return {"ok": True}
+
+@app.post("/api/entregadores/{eid}/nome")
+async def api_set_nome_entregador(request: Request, eid: int) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    nome = str(form.get("nome", "")).strip()
+    if not nome:
+        raise HTTPException(400, "Nome não pode estar vazio")
+    models.atualizar_entregador(eid, nome=nome)
     return {"ok": True}
 
 @app.post("/api/entregadores/{eid}/obs")
