@@ -709,9 +709,10 @@ async def api_gerar_escala_entregadores(request: Request) -> dict:
     mes_str = str(form.get("mes", ""))
     ano, mes_num = _parse_mes(mes_str if mes_str else None)
     # 7 valores, um por dia da semana (0=Seg … 6=Dom)
-    totais = [int(form.get(f"total_{i}", 4)) for i in range(7)]
-    min_r_list = [int(form.get(f"min_rapido_{i}", 0)) for i in range(7)]
-    min_n_list = [int(form.get(f"min_normal_{i}", 0)) for i in range(7)]
+    # "or X" trata campo vazio ("") da mesma forma que campo ausente
+    totais     = [int(form.get(f"total_{i}")      or 4) for i in range(7)]
+    min_r_list = [int(form.get(f"min_rapido_{i}") or 0) for i in range(7)]
+    min_n_list = [int(form.get(f"min_normal_{i}") or 0) for i in range(7)]
     sobrescrever = form.get("sobrescrever", "") == "1"
     max_dias_semana = max(1, int(form.get("max_dias_semana", 2) or 2))
     dias_raw       = form.getlist("dias_especificos")

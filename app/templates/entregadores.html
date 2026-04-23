@@ -923,9 +923,9 @@ async function executarGerar() {
     try {
         const fd = new FormData();
         fd.append('mes', document.getElementById('g-mes').value);
-        for (let i = 0; i < 7; i++) fd.append(`total_${i}`, document.getElementById(`g-total-${i}`).value);
-        for (let i = 0; i < 7; i++) fd.append(`min_rapido_${i}`, document.getElementById(`g-min-r-${i}`).value);
-        for (let i = 0; i < 7; i++) fd.append(`min_normal_${i}`, document.getElementById(`g-min-n-${i}`).value);
+        for (let i = 0; i < 7; i++) fd.append(`total_${i}`,     document.getElementById(`g-total-${i}`).value  || 0);
+        for (let i = 0; i < 7; i++) fd.append(`min_rapido_${i}`, document.getElementById(`g-min-r-${i}`).value || 0);
+        for (let i = 0; i < 7; i++) fd.append(`min_normal_${i}`, document.getElementById(`g-min-n-${i}`).value || 0);
         if (document.getElementById('g-sobrescrever').checked) fd.append('sobrescrever', '1');
         fd.append('max_dias_semana', document.getElementById('g-max-dias-semana').value || 2);
         dias.forEach(d => fd.append('dias_especificos', d));
