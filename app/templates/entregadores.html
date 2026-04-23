@@ -22,6 +22,10 @@
                     class="gs-btn gs-btn-ghost whitespace-nowrap text-xs">
                 ↩ Desfazer geração
             </button>
+            <button type="button" onclick="abrirModalPdfEntr()"
+                    class="gs-btn gs-btn-ghost whitespace-nowrap">
+                📄 PDF
+            </button>
             <button type="button" onclick="abrirModalLimpar()"
                     class="gs-btn gs-btn-danger whitespace-nowrap">
                 🗑 Desfazer escala
@@ -240,6 +244,49 @@
         </table>
         </div>
         {% endif %}
+    </div>
+
+    <!-- Modal PDF Entregadores -->
+    <div id="modal-pdf-entr" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg my-6 p-6 space-y-4">
+
+        <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold uppercase tracking-wide">📄 Gerar PDF — Entregadores</h2>
+            <button onclick="fecharModalPdfEntr()" class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="gs-section-title block mb-1">Mês</label>
+                <input type="month" id="pdf-entr-mes" value="{{ mes_str }}" class="gs-input"
+                       onchange="renderCalEm('pdf-entr-cal','pdf-entr-mes','pdf-entr-count')">
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="gs-section-title">Dias a incluir no PDF</label>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="selecionarTodosEm('pdf-entr-cal','pdf-entr-count')"
+                                class="text-xs font-bold underline text-brand-grey hover:text-black">Mês inteiro</button>
+                        <button type="button" onclick="limparTodosEm('pdf-entr-cal','pdf-entr-count')"
+                                class="text-xs font-bold underline text-brand-grey hover:text-black">Limpar</button>
+                    </div>
+                </div>
+                <div id="pdf-entr-cal" class="select-none"></div>
+                <p id="pdf-entr-count" class="text-xs text-brand-grey mt-1"></p>
+            </div>
+        </div>
+
+        <!-- Formulário oculto: submissão POST para download do PDF -->
+        <form id="form-pdf-entr" method="post" action="/pdf/entregadores" class="hidden">
+            <input type="hidden" name="mes" id="pdf-entr-mes-hidden">
+            <div id="pdf-entr-dias-inputs"></div>
+        </form>
+
+        <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
+            <button onclick="fecharModalPdfEntr()" class="gs-btn gs-btn-ghost">Cancelar</button>
+            <button onclick="executarPdfEntr()" class="gs-btn gs-btn-primary">📄 Baixar PDF</button>
+        </div>
+    </div>
     </div>
 
     <!-- Modal Desfazer / Limpar Escala -->
@@ -1071,5 +1118,23 @@ async function executarDesfazer() {
 
 // Verificação inicial ao carregar
 verificarExcessoSemanal();
+
+// ─── Modal PDF Entregadores ───────────────────────────────────────────────────
+function abrirModalPdfEntr() {
+    document.getElementById('modal-pdf-entr').classList.remove('hidden');
+    renderCalEm('pdf-entr-cal', 'pdf-entr-mes', 'pdf-entr-count');
+    selecionarTodosEm('pdf-entr-cal', 'pdf-entr-count');
+}
+function fecharModalPdfEntr() {
+    document.getElementById('modal-pdf-entr').classList.add('hidden');
+}
+function executarPdfEntr() {
+    const dias = diasSelecionadosEm('pdf-entr-cal');
+    if (dias.length === 0) { alert('Selecione pelo menos um dia.'); return; }
+    document.getElementById('pdf-entr-mes-hidden').value = document.getElementById('pdf-entr-mes').value;
+    const cont = document.getElementById('pdf-entr-dias-inputs');
+    cont.innerHTML = dias.map(d => `<input type="hidden" name="dias_especificos" value="${d}">`).join('');
+    document.getElementById('form-pdf-entr').submit();
+}
 </script>
 {% endblock %}

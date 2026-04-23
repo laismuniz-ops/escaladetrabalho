@@ -136,3 +136,94 @@ def gerar_pdf_escala(ano: int, mes: int, tipo: str) -> bytes:
     buf = BytesIO()
     pdf.output(buf)
     return buf.getvalue()
+
+
+def gerar_pdf_entregadores(ano: int, mes: int, dias_selecionados: list[str]) -> bytes:
+    """Gera PDF da escala de entregadores para os dias selecionados. Nomes sem cor."""
+    from datetime import date as _date
+
+    lista  = models.listar_entregadores(ativos_apenas=True)
+    dias   = sorted([_date.fromisoformat(d) for d in dias_selecionados if d])
+    if not dias:
+        dias = utils.dias_do_mes(ano, mes)
+
+    escalas = models.escala_entregadores_mensal(ano, mes)
+
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=False)
+    _preparar_fonte(pdf)
+    pdf.add_page()
+    pdf.set_margins(left=8, top=10, right=8)
+
+    # ── Título ───────────────────────────────────────────────────
+    pdf.set_font("DejaVu", "B", 13)
+    pdf.set_text_color(*COR_TEXTO)
+    titulo = f"ESCALA DE ENTREGADORES — {utils.nome_mes(mes).upper()} / {ano}"
+    pdf.cell(0, 8, titulo, ln=True, align="C")
+    pdf.ln(2)
+
+    # ── Dimensões ────────────────────────────────────────────────
+    page_w  = pdf.w - pdf.l_margin - pdf.r_margin
+    col_nome = 52
+    n_dias   = len(dias)
+    col_dia  = max(6.0, (page_w - col_nome) / n_dias) if n_dias else 10
+    altura   = 6
+
+    # ── Cabeçalho: dia da semana ─────────────────────────────────
+    pdf.set_font("DejaVu", "B", 6)
+    pdf.set_draw_color(*COR_GRID)
+    pdf.set_fill_color(*COR_HEADER_BG)
+    pdf.set_text_color(*COR_HEADER_FG)
+    pdf.cell(col_nome, altura, "Entregador", border=1, fill=True)
+    for d in dias:
+        if d.weekday() == 6:
+            pdf.set_fill_color(*COR_DOMINGO_BG)
+        pdf.cell(col_dia, altura, utils.dia_semana_curto(d), border=1, fill=True, align="C")
+        if d.weekday() == 6:
+            pdf.set_fill_color(*COR_HEADER_BG)
+    pdf.ln()
+
+    # ── Cabeçalho: número do dia ─────────────────────────────────
+    pdf.set_fill_color(*COR_HEADER_BG)
+    pdf.cell(col_nome, altura, "", border=1, fill=True)
+    for d in dias:
+        if d.weekday() == 6:
+            pdf.set_fill_color(*COR_DOMINGO_BG)
+        pdf.cell(col_dia, altura, str(d.day), border=1, fill=True, align="C")
+        if d.weekday() == 6:
+            pdf.set_fill_color(*COR_HEADER_BG)
+    pdf.ln()
+
+    # ── Linhas dos entregadores ──────────────────────────────────
+    pdf.set_font("DejaVu", "", 7)
+    for e in lista:
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(*COR_TEXTO)   # sem cor — sempre preto
+        nome_pdf = e["nome"][:38]
+        if e.get("obs"):
+            nome_pdf = f"{nome_pdf} ({e['obs'][:14]})"
+        pdf.cell(col_nome, altura, nome_pdf[:42], border=1)
+        turnos_e = escalas.get(e["id"], {})
+        for d in dias:
+            status = turnos_e.get(d.isoformat(), "")
+            if status == "ESCALADO":
+                bg, fg, label = (254, 243, 199), (120, 53, 15), "E"
+            elif status == "CONFIRMADO":
+                bg, fg, label = (220, 252, 231), (20, 83, 45), "C"
+            else:
+                bg, fg, label = (255, 255, 255), (200, 200, 200), ""
+            pdf.set_fill_color(*bg)
+            pdf.set_text_color(*fg)
+            pdf.cell(col_dia, altura, label, border=1, fill=True, align="C")
+        pdf.ln()
+
+    # ── Legenda ──────────────────────────────────────────────────
+    pdf.ln(2)
+    pdf.set_font("DejaVu", "", 6)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 4, "E = Escalado   C = Confirmado", ln=True)
+    pdf.cell(0, 4, f"Grupo Singular — Gerado em {utils.nome_mes(mes)}/{ano}", ln=True)
+
+    buf = BytesIO()
+    pdf.output(buf)
+    return buf.getvalue()

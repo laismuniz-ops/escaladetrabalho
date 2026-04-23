@@ -812,6 +812,7 @@ def gerar_escala_colab_auto(
     sobrescrever: bool = False,
     preencher_trabalho: bool = True,
     dias_especificos: list = None,
+    setores: list = None,
 ) -> dict:
     """
     Gera escala automática de FOLGAS para colaboradores CONTRATADOS.
@@ -831,16 +832,26 @@ def gerar_escala_colab_auto(
 
     MIDWEEK_DOWS = [1, 2, 3]  # Ter=1, Qua=2, Qui=3
 
-    funcionarios = listar_funcionarios(tipo="CONTRATADO", ativos_apenas=True)
-    if not funcionarios:
+    todos_funcionarios = listar_funcionarios(tipo="CONTRATADO", ativos_apenas=True)
+    if not todos_funcionarios:
         return {"erro": "Nenhum colaborador contratado ativo.", "gerados": 0, "avisos": []}
 
     minimos = get_minimos()
 
-    # Total de CONTRATADOS por setor (base para checagem de mínimos)
+    # Total de CONTRATADOS por setor — usa TODOS (base correta para mínimos)
     setor_total: dict[str, int] = defaultdict(int)
-    for f in funcionarios:
+    for f in todos_funcionarios:
         setor_total[f["setor"]] += 1
+
+    # Filtra pelos setores selecionados (somente para geração, não para contagem de mínimos)
+    if setores:
+        funcionarios = [f for f in todos_funcionarios if f["setor"] in setores]
+    else:
+        funcionarios = todos_funcionarios
+
+    if not funcionarios:
+        setores_str = ", ".join(setores) if setores else "—"
+        return {"erro": f"Nenhum colaborador nos setores selecionados ({setores_str}).", "gerados": 0, "avisos": []}
 
     num_dias = _cal.monthrange(ano, mes)[1]
     datas_mes = [_date(ano, mes, d) for d in range(1, num_dias + 1)]

@@ -15,7 +15,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import models, utils, auth
 from .database import init_db, fazer_backup, listar_backups, restaurar_backup
-from .pdf_export import gerar_pdf_escala
+from .pdf_export import gerar_pdf_escala, gerar_pdf_entregadores
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -262,9 +262,9 @@ def grade(request: Request, mes: Optional[str] = None, tipo: Optional[str] = Non
         por_setor.keys(),
         key=lambda s: models.SETORES_ORDEM.index(s) if s in models.SETORES_ORDEM else 99,
     )
-    # Alertas de mínimos por dia (usa TODOS os funcionários, independente do filtro)
+    # Alertas de mínimos por dia (usa TODOS os funcionários, incluindo inativos com turno)
     minimos = models.get_minimos()
-    todos_func = models.listar_funcionarios()
+    todos_func = models.listar_funcionarios(ativos_apenas=False)
     todas_escalas = models.escala_mensal(ano, mes_num)
     dias_alerta: dict[str, list[dict]] = {}
     for dia in dias:
@@ -575,12 +575,14 @@ async def api_gerar_escala_colab(request: Request) -> dict:
     form = await request.form()
     mes_str = str(form.get("mes", ""))
     ano, mes_num = _parse_mes(mes_str if mes_str else None)
-    sobrescrever      = form.get("sobrescrever", "") == "1"
+    sobrescrever       = form.get("sobrescrever", "") == "1"
     preencher_trabalho = form.get("preencher_trabalho", "1") == "1"
-    dias_raw          = form.getlist("dias_especificos")
-    dias_especificos  = dias_raw if dias_raw else None
+    dias_raw           = form.getlist("dias_especificos")
+    dias_especificos   = dias_raw if dias_raw else None
+    setores_raw        = form.getlist("setores")
+    setores            = setores_raw if setores_raw else None
     resultado = models.gerar_escala_colab_auto(
-        ano, mes_num, sobrescrever, preencher_trabalho, dias_especificos
+        ano, mes_num, sobrescrever, preencher_trabalho, dias_especificos, setores
     )
     return resultado
 
@@ -781,6 +783,24 @@ def exportar_pdf(request: Request, tipo: str, mes: Optional[str] = None) -> Resp
     ano, mes_num = _parse_mes(mes)
     pdf_bytes = gerar_pdf_escala(ano, mes_num, tipo_upper)
     nome_arquivo = f"Escala_{tipo_upper.title()}s_{utils.nome_mes(mes_num)}_{ano}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )
+
+
+@app.post("/pdf/entregadores")
+def exportar_pdf_entregadores(
+    request: Request,
+    mes: str = Form(None),
+    dias_especificos: List[str] = Form(default=[]),
+) -> Response:
+    if redir := auth.verificar_permissao(request, "entregadores"):
+        return redir
+    ano, mes_num = _parse_mes(mes)
+    pdf_bytes = gerar_pdf_entregadores(ano, mes_num, dias_especificos)
+    nome_arquivo = f"Escala_Entregadores_{utils.nome_mes(mes_num)}_{ano}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

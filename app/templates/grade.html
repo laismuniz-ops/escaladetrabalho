@@ -173,6 +173,25 @@
                 <label class="gs-section-title block mb-1">Mês</label>
                 <input type="month" id="gc-mes" value="{{ mes_str }}" class="gs-input">
             </div>
+
+            <div>
+                <label class="gs-section-title block mb-1">Setores a gerar</label>
+                <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" id="gc-setor-cozinha" checked class="accent-black">
+                        Cozinha
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" id="gc-setor-atendimento" checked class="accent-black">
+                        Atendimento
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" id="gc-setor-administrativo" class="accent-black">
+                        Administrativo
+                    </label>
+                </div>
+            </div>
+
             <div class="flex items-center gap-3 flex-wrap">
                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                     <input type="checkbox" id="gc-preencher" checked class="accent-black">
@@ -450,6 +469,24 @@ async function executarGerarColab() {
         fd.append('mes',               document.getElementById('gc-mes').value);
         fd.append('preencher_trabalho', document.getElementById('gc-preencher').checked ? '1' : '0');
         fd.append('sobrescrever',       document.getElementById('gc-sobrescrever').checked ? '1' : '0');
+        // Setores selecionados
+        const setoresMap = {
+            'gc-setor-cozinha':        'COZINHA',
+            'gc-setor-atendimento':    'ATENDIMENTO',
+            'gc-setor-administrativo': 'ADMINISTRATIVO',
+        };
+        let algumSetor = false;
+        for (const [id, val] of Object.entries(setoresMap)) {
+            if (document.getElementById(id).checked) {
+                fd.append('setores', val);
+                algumSetor = true;
+            }
+        }
+        if (!algumSetor) {
+            div.innerHTML = '<div class="gs-alert-erro">Selecione ao menos um setor.</div>';
+            div.classList.remove('hidden');
+            return;
+        }
         const r    = await fetch('/api/escala/gerar-auto', { method: 'POST', body: fd });
         const data = await r.json();
 
