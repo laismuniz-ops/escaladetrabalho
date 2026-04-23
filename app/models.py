@@ -10,6 +10,12 @@ SETORES_ORDEM = ["COZINHA", "ATENDIMENTO", "ADMINISTRATIVO"]
 TURNOS_VALIDOS = {"MANHA", "TARDE", "FOLGA", "FERIAS", "AFASTAMENTO"}
 TIPOS_VALIDOS = {"CONTRATADO", "EXTRA"}
 
+# Pares de cargos-chave que não podem ter folga no mesmo dia
+# (além da regra geral de mesmo cargo não folgar junto)
+GRUPOS_CARGO_EXCLUSIVO: list[frozenset] = [
+    frozenset({"fiscal de cozinha", "gerente operacional"}),
+]
+
 
 # ---------- Funcionários ----------
 
@@ -825,18 +831,25 @@ def gerar_escala_colab_auto(
 
     Regras:
     • 1 folga por semana (Dom, Ter, Qua ou Qui — nunca Seg, Sex, Sáb)
-    • Mulheres: 2 folgas no domingo por mês; Homens: 1
-    • Domingos de folga são atribuídos em semanas consecutivas (evita streak > 6)
-    • Folgas mid-week são rotacionadas entre Ter/Qua/Qui por funcionário
+    • Mulheres: folga de domingo a cada 15 dias (ciclo contínuo entre meses); Homens: 1/mês
+    • Folgas mid-week são rotacionadas entre Seg/Ter/Qua por funcionário
     • Respeita mínimos de escala por setor/turno/dia da semana
+    • Sem folgas consecutivas (dias adjacentes)
     • Máximo 6 dias consecutivos de trabalho; folga extra inserida se necessário
-    • preencher_trabalho=True → dias sem folga recebem MANHA+TARDE
+    • Dois colaboradores do mesmo cargo não folgam no mesmo dia
+    • Pares de cargos-chave (ex: fiscal de cozinha + gerente operacional) não folgam juntos
+    • preencher_trabalho=True → dias sem folga recebem o turno do colaborador
     """
     import calendar as _cal
     from datetime import date as _date, timedelta as _td
     from collections import defaultdict
 
-    MIDWEEK_DOWS = [1, 2, 3]  # Ter=1, Qua=2, Qui=3
+    MIDWEEK_DOWS = [0, 1, 2]  # Seg=0, Ter=1, Qua=2
+
+    # Conjunto flat de todos os cargos que participam de pares exclusivos
+    _GRUPO_LIDERANCA_SET: frozenset = frozenset(
+        c for g in GRUPOS_CARGO_EXCLUSIVO for c in g
+    )
 
     todos_funcionarios = listar_funcionarios(tipo="CONTRATADO", ativos_apenas=True)
     if not todos_funcionarios:
@@ -932,14 +945,18 @@ def gerar_escala_colab_auto(
     # Só conta a folga no turno que o funcionário realmente trabalha
     folgas_no_dia: dict = defaultdict(int)
 
+    # Folgas por (data, cargo_lower) — para regra de cargo único por dia
+    folgas_cargo_dia: dict[tuple, set] = defaultdict(set)
+
     # Índices de rotação por gênero
     idx_por_genero: dict[str, int] = {"M": 0, "F": 0}
 
     for idx_global, f in enumerate(funcionarios):
-        fid    = f["id"]
-        genero = f.get("genero", "M")
-        setor  = f["setor"]
-        n_dom  = 2 if genero == "F" else 1
+        fid        = f["id"]
+        genero     = f.get("genero", "M")
+        setor      = f["setor"]
+        cargo_lower = f["cargo"].strip().lower()
+        n_dom      = 2 if genero == "F" else 1
 
         idx_g = idx_por_genero[genero]
         idx_por_genero[genero] += 1
@@ -948,17 +965,39 @@ def gerar_escala_colab_auto(
         folgas_dom_semanas: set = set()
         n_disp = len(semanas_com_dom)
         if n_disp > 0:
-            if n_dom >= 2 and n_disp >= 3:
-                # A cada 15 dias: pula 1 domingo entre os dois (gap = 2 semanas)
-                max_start = n_disp - 2
-                par = idx_g % max(1, max_start)
-                folgas_dom_semanas.add(semanas_com_dom[par])
-                folgas_dom_semanas.add(semanas_com_dom[par + 2])
-            elif n_dom >= 2 and n_disp == 2:
-                # Só 2 domingos no mês: usa os 2 (já estão a 2 semanas de distância)
-                folgas_dom_semanas.add(semanas_com_dom[0])
-                folgas_dom_semanas.add(semanas_com_dom[1])
+            sundays_list = [dom_por_semana[s] for s in semanas_com_dom]
+            if n_dom >= 2:
+                # Tenta manter o ciclo de 14 dias baseado no último domingo
+                # de folga do mês anterior (evita quebra do ciclo entre meses)
+                esc_ant_f_map = escala_mes_ant.get(fid, {})
+                ultimo_dom_off = None
+                for _iso_d in sorted(esc_ant_f_map.keys(), reverse=True):
+                    _d_chk = _date.fromisoformat(_iso_d)
+                    if (_d_chk.weekday() == 6
+                            and esc_ant_f_map[_iso_d] in ("FOLGA", "FERIAS", "AFASTAMENTO")):
+                        ultimo_dom_off = _d_chk
+                        break
+                if ultimo_dom_off is not None:
+                    # Primeiro domingo: o mais próximo de ultimo_dom_off + 14
+                    _target1 = ultimo_dom_off + _td(days=14)
+                    _idx1 = min(range(n_disp),
+                                key=lambda i: abs((sundays_list[i] - _target1).days))
+                    folgas_dom_semanas.add(semanas_com_dom[_idx1])
+                    _idx2 = _idx1 + 2
+                    if _idx2 < n_disp:
+                        folgas_dom_semanas.add(semanas_com_dom[_idx2])
+                else:
+                    # Sem histórico: rotação com gap de 2 semanas
+                    if n_disp >= 3:
+                        _max_st = n_disp - 2
+                        _par = idx_g % max(1, _max_st)
+                        folgas_dom_semanas.add(semanas_com_dom[_par])
+                        folgas_dom_semanas.add(semanas_com_dom[_par + 2])
+                    else:
+                        for _s in semanas_com_dom:
+                            folgas_dom_semanas.add(_s)
             else:
+                # n_dom == 1 (homens): 1 domingo por mês
                 folgas_dom_semanas.add(semanas_com_dom[idx_g % n_disp])
 
         # Dia mid-week preferido (rotado por funcionário)
@@ -1013,14 +1052,23 @@ def gerar_escala_colab_auto(
                             if base - ocupados - 1 < min_val:
                                 viavel = False
                                 break
+                # ── Check: regra de cargo (mesmo cargo / par chave) ───────────
+                if viavel and folgas_cargo_dia.get((d, cargo_lower)):
+                    viavel = False
+                if viavel and cargo_lower in _GRUPO_LIDERANCA_SET:
+                    for _cargo_par in _GRUPO_LIDERANCA_SET:
+                        if _cargo_par != cargo_lower and folgas_cargo_dia.get((d, _cargo_par)):
+                            viavel = False
+                            break
                 if viavel:
                     folga_ok = d
                     for _tk in ("MANHA", "TARDE"):
                         if _tk in turno_p_f:
                             folgas_no_dia[(d, setor, _tk)] += 1
+                    folgas_cargo_dia[(d, cargo_lower)].add(fid)
                     break
 
-            # Fallback 1: ignora check de consecutivos mas mantém mínimos
+            # Fallback 1: ignora check de consecutivos mas mantém mínimos + cargo
             if folga_ok is None:
                 turno_p_f = f.get("turno_padrao") or "MANHA+TARDE"
                 for d in candidatos:
@@ -1039,18 +1087,26 @@ def gerar_escala_colab_auto(
                                 if base - ocupados - 1 < min_val:
                                     viavel = False
                                     break
+                    if viavel and folgas_cargo_dia.get((d, cargo_lower)):
+                        viavel = False
+                    if viavel and cargo_lower in _GRUPO_LIDERANCA_SET:
+                        for _cargo_par in _GRUPO_LIDERANCA_SET:
+                            if _cargo_par != cargo_lower and folgas_cargo_dia.get((d, _cargo_par)):
+                                viavel = False
+                                break
                     if viavel:
                         folga_ok = d
                         for _tk in ("MANHA", "TARDE"):
                             if _tk in turno_p_f:
                                 folgas_no_dia[(d, setor, _tk)] += 1
+                        folgas_cargo_dia[(d, cargo_lower)].add(fid)
                         avisos.append(
                             f"{f['nome']}: folga em {d.strftime('%d/%m')} "
                             f"ficou próxima de outra folga."
                         )
                         break
 
-            # Fallback 2: força qualquer candidato com aviso de mínimo
+            # Fallback 2: força qualquer candidato (avisa mínimo; ignora cargo)
             if folga_ok is None and candidatos:
                 turno_p_f = f.get("turno_padrao") or "MANHA+TARDE"
                 for d in candidatos:
@@ -1059,6 +1115,7 @@ def gerar_escala_colab_auto(
                         for _tk in ("MANHA", "TARDE"):
                             if _tk in turno_p_f:
                                 folgas_no_dia[(d, setor, _tk)] += 1
+                        folgas_cargo_dia[(d, cargo_lower)].add(fid)
                         avisos.append(
                             f"{f['nome']}: folga em {d.strftime('%d/%m')} "
                             f"pode deixar {setor.capitalize()} abaixo do mínimo."
@@ -1069,7 +1126,7 @@ def gerar_escala_colab_auto(
                 folgas_planejadas.append(folga_ok)
 
         # ── Corrige streaks > 6 dias consecutivos ─────────────────────────────
-        DIAS_VALIDOS_FOLGA = set(MIDWEEK_DOWS) | {6}  # Ter/Qua/Qui + Dom
+        DIAS_VALIDOS_FOLGA = set(MIDWEEK_DOWS) | {6}  # Seg/Ter/Qua + Dom
 
         def _nao_consecutiva(c, fs):
             """True se c não está adjacente a nenhuma folga já em fs."""
@@ -1084,6 +1141,7 @@ def gerar_escala_colab_auto(
             for _tk in ("MANHA", "TARDE"):
                 if _tk in turno_p_streak:
                     folgas_no_dia[(c, setor, _tk)] += 1
+            folgas_cargo_dia[(c, cargo_lower)].add(fid)
 
         for d in datas_mes:
             if d in folgas_set:
@@ -1138,16 +1196,39 @@ def gerar_escala_colab_auto(
                                 streak = 0
                                 inserido = True
                                 break
-                    # Fallback absoluto: usa d somente se for dia válido de folga
+                    # Fallback absoluto: busca dia válido SEM consecutivos; se não
+                    # encontrar, aceita consecutivo como último recurso.
                     if not inserido:
-                        alvo = d if d.weekday() in DIAS_VALIDOS_FOLGA else None
-                        if alvo is None:
-                            # Busca o próximo dia válido
+                        alvo = None
+                        # 1ª tentativa: sem consecutivos
+                        _d_cand = d if (d.weekday() in DIAS_VALIDOS_FOLGA
+                                        and d not in folgas_set
+                                        and _nao_consecutiva(d, folgas_set)) else None
+                        if _d_cand:
+                            alvo = _d_cand
+                        else:
                             for k in range(1, 8):
                                 c = d + _td(days=k)
-                                if c in datas_alvo and c.weekday() in DIAS_VALIDOS_FOLGA and c not in folgas_set:
+                                if (c in datas_alvo
+                                        and c.weekday() in DIAS_VALIDOS_FOLGA
+                                        and c not in folgas_set
+                                        and _nao_consecutiva(c, folgas_set)):
                                     alvo = c
                                     break
+                        # 2ª tentativa (último recurso): aceita consecutivo
+                        if alvo is None:
+                            _d_cand2 = d if (d.weekday() in DIAS_VALIDOS_FOLGA
+                                             and d not in folgas_set) else None
+                            if _d_cand2:
+                                alvo = _d_cand2
+                            else:
+                                for k in range(1, 8):
+                                    c = d + _td(days=k)
+                                    if (c in datas_alvo
+                                            and c.weekday() in DIAS_VALIDOS_FOLGA
+                                            and c not in folgas_set):
+                                        alvo = c
+                                        break
                         if alvo and alvo not in folgas_set:
                             _add_folga_streak(alvo)
                             avisos.append(
