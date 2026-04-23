@@ -103,7 +103,9 @@
       "Bash(python3 -c \"from app import models; print\\('OK'\\)\")",
       "Bash(python3 -c \"from app import main; print\\('OK'\\)\")",
       "Bash(python3 -c ' *)",
-      "Bash(python3 -c \"import ast; ast.parse\\(open\\('app/models.py'\\).read\\(\\)\\); print\\('OK'\\)\")"
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('app/models.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python3 -c \"import sys; sys.path.insert\\(0, '.'\\); import app.models\")",
+      "Bash(node -e ' *)"
     ]
   }
 }
