@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Cadastros — GS Escala de Trabalho{% endblock %}
 
-{% macro render_lista(titulo, lista) %}
+{% macro render_lista(titulo, lista, mostrar_genero=True) %}
 <div class="gs-card overflow-hidden">
     <div class="px-6 py-4 border-b border-brand-border flex items-center justify-between">
         <h2 class="gs-section-title">{{ titulo }} <span class="ml-1">({{ lista|length }})</span></h2>
@@ -18,7 +18,8 @@
                 <th>Cargo</th>
                 <th>Setor</th>
                 <th>Tipo</th>
-                <th>Gênero</th>
+                <th>Turno</th>
+                {% if mostrar_genero %}<th>Gênero</th>{% endif %}
                 <th class="text-center">Status</th>
                 <th class="text-right">Ações</th>
             </tr>
@@ -29,6 +30,9 @@
             <!-- Formulário oculto para salvar dados -->
             <form method="post" action="/api/funcionarios/{{ f.id }}/atualizar" id="ff-{{ f.id }}" class="hidden">
                 <input type="hidden" name="ativo" id="ativo-hidden-{{ f.id }}" value="{{ '1' if f.ativo else '0' }}">
+                {% if not mostrar_genero %}
+                <input type="hidden" name="genero" value="M">
+                {% endif %}
             </form>
 
             <!-- Ordem: botões ↑ ↓ -->
@@ -63,11 +67,20 @@
                 </select>
             </td>
             <td>
+                <select form="ff-{{ f.id }}" name="turno_padrao" class="gs-input text-sm py-1.5 w-auto">
+                    <option value="MANHA+TARDE" {% if f.get('turno_padrao','MANHA+TARDE') == 'MANHA+TARDE' %}selected{% endif %}>M+T</option>
+                    <option value="MANHA"       {% if f.get('turno_padrao','MANHA+TARDE') == 'MANHA'       %}selected{% endif %}>Manhã</option>
+                    <option value="TARDE"       {% if f.get('turno_padrao','MANHA+TARDE') == 'TARDE'       %}selected{% endif %}>Tarde</option>
+                </select>
+            </td>
+            {% if mostrar_genero %}
+            <td>
                 <select form="ff-{{ f.id }}" name="genero" class="gs-input text-sm py-1.5 w-auto">
                     <option value="M" {% if f.get('genero','M') == 'M' %}selected{% endif %}>Masculino</option>
                     <option value="F" {% if f.get('genero','M') == 'F' %}selected{% endif %}>Feminino</option>
                 </select>
             </td>
+            {% endif %}
 
             <!-- Status: toggle ativo/inativo -->
             <td class="text-center">
@@ -117,27 +130,43 @@
                     <option value="ATENDIMENTO">Atendimento</option>
                     <option value="ADMINISTRATIVO">Administrativo</option>
                 </select>
-                <select name="tipo" required class="gs-input">
+                <select name="tipo" id="novo-tipo" required class="gs-input" onchange="toggleNovoGenero()">
                     <option value="CONTRATADO">Contratado</option>
                     <option value="EXTRA">Extra</option>
                 </select>
-                <select name="genero" class="gs-input">
-                    <option value="M">Masculino</option>
-                    <option value="F">Feminino</option>
+                <select name="turno_padrao" class="gs-input">
+                    <option value="MANHA+TARDE">M+T</option>
+                    <option value="MANHA">Manhã</option>
+                    <option value="TARDE">Tarde</option>
                 </select>
+                <div id="novo-genero-wrap" class="contents">
+                    <select name="genero" class="gs-input">
+                        <option value="M">Masculino</option>
+                        <option value="F">Feminino</option>
+                    </select>
+                </div>
                 <button type="submit" class="gs-btn gs-btn-primary md:col-span-6">+ Cadastrar</button>
             </div>
         </form>
     </div>
 
-    {{ render_lista("Contratados", contratados) }}
-    {{ render_lista("Extras", extras) }}
+    {{ render_lista("Contratados", contratados, mostrar_genero=True) }}
+    {{ render_lista("Extras", extras, mostrar_genero=False) }}
 
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+function toggleNovoGenero() {
+    const tipo = document.getElementById('novo-tipo').value;
+    const wrap = document.getElementById('novo-genero-wrap');
+    // Mostra o campo gênero só para contratados
+    wrap.style.display = tipo === 'EXTRA' ? 'none' : 'contents';
+}
+// Aplica estado inicial
+toggleNovoGenero();
+
 document.querySelectorAll(".btn-toggle-ativo").forEach(btn => {
     btn.addEventListener("click", async () => {
         const id    = btn.dataset.id;

@@ -485,10 +485,14 @@ def criar_func(
     setor: str = Form(...),
     tipo: str = Form(...),
     genero: str = Form("M"),
+    turno_padrao: str = Form("MANHA+TARDE"),
 ) -> RedirectResponse:
     if redir := auth.verificar_permissao(request, "cadastros"):
         return redir
-    models.criar_funcionario(nome.strip(), cargo.strip(), setor.strip(), tipo, genero=genero)
+    models.criar_funcionario(
+        nome.strip(), cargo.strip(), setor.strip(), tipo,
+        genero=genero, turno_padrao=turno_padrao,
+    )
     return RedirectResponse(url="/cadastros", status_code=303)
 
 
@@ -502,12 +506,14 @@ def atualizar_func(
     tipo: str = Form(...),
     ativo: str = Form("1"),
     genero: str = Form("M"),
+    turno_padrao: str = Form("MANHA+TARDE"),
 ) -> RedirectResponse:
     if redir := auth.verificar_permissao(request, "cadastros"):
         return redir
     models.atualizar_funcionario(
         func_id, nome=nome.strip(), cargo=cargo.strip(),
-        setor=setor.strip(), tipo=tipo, ativo=(ativo == "1"), genero=genero,
+        setor=setor.strip(), tipo=tipo, ativo=(ativo == "1"),
+        genero=genero, turno_padrao=turno_padrao,
     )
     return RedirectResponse(url="/cadastros", status_code=303)
 

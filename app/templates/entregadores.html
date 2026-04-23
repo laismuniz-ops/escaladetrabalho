@@ -42,7 +42,12 @@
     </div>
 
     <!-- Grade -->
-    <div class="gs-card overflow-auto" style="max-height: 75vh;">
+    <div class="gs-card overflow-auto" style="max-height: 75vh; position: relative;">
+    <button onclick="abrirModalPdfEntr()"
+            style="position:sticky;top:6px;float:right;margin:4px 6px 0 0;z-index:25;"
+            class="gs-btn gs-btn-ghost text-xs py-1 px-2 opacity-70 hover:opacity-100 whitespace-nowrap">
+        📄 PDF
+    </button>
     <table class="border-collapse text-xs min-w-full">
         <thead>
             <tr>
@@ -521,7 +526,7 @@
     background:#000; color:#fff;
 }
 .gcal-dia:hover { opacity:0.75; }
-.gcal-dia.dom { background:#b91c1c; }
+.gcal-dia.dom { background:#000; }
 .gcal-dia.desmarcado { background:#f5f5f4; color:#d4d4d4; border-color:#e5e5e3; }
 .gcal-dia.vazio { visibility:hidden; }
 </style>

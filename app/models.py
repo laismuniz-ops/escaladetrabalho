@@ -37,15 +37,17 @@ def obter_funcionario(func_id: int) -> Optional[dict]:
 
 
 def criar_funcionario(
-    nome: str, cargo: str, setor: str, tipo: str, ordem: int = 0, genero: str = "M"
+    nome: str, cargo: str, setor: str, tipo: str,
+    ordem: int = 0, genero: str = "M", turno_padrao: str = "MANHA+TARDE"
 ) -> int:
     if tipo not in TIPOS_VALIDOS:
         raise ValueError(f"tipo inválido: {tipo}")
+    turno_padrao = turno_padrao.strip().upper().replace(" ", "+")
     with db_cursor() as cur:
         cur.execute(
-            """INSERT INTO funcionarios (nome, cargo, setor, tipo, ordem, genero)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (nome, cargo, setor.upper(), tipo, ordem, genero.upper()),
+            """INSERT INTO funcionarios (nome, cargo, setor, tipo, ordem, genero, turno_padrao)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (nome, cargo, setor.upper(), tipo, ordem, genero.upper(), turno_padrao),
         )
         return cur.lastrowid
 
@@ -58,6 +60,7 @@ def atualizar_funcionario(
     tipo: Optional[str] = None,
     ativo: Optional[bool] = None,
     genero: Optional[str] = None,
+    turno_padrao: Optional[str] = None,
 ) -> None:
     campos = []
     valores: list = []
@@ -81,6 +84,9 @@ def atualizar_funcionario(
     if genero is not None:
         campos.append("genero = ?")
         valores.append(genero.upper())
+    if turno_padrao is not None:
+        campos.append("turno_padrao = ?")
+        valores.append(turno_padrao.strip().upper().replace(" ", "+"))
     if not campos:
         return
     valores.append(func_id)
@@ -967,10 +973,22 @@ def gerar_escala_colab_auto(
                 candidatos = pref + outras
 
             folga_ok = None
+            folgas_set_ate_agora = set(folgas_planejadas)
             for d in candidatos:
                 if d not in datas_alvo:
                     continue
-                # Checa se folga respeita mínimos do setor
+                # ── Check: sem folgas consecutivas ────────────────────
+                d_ant  = d - _td(days=1)
+                d_prox = d + _td(days=1)
+                ant_folga = False
+                if d_ant < datas_mes[0]:  # dia anterior está no mês passado
+                    ant_turno = escala_mes_ant.get(fid, {}).get(d_ant.isoformat(), "")
+                    ant_folga = ant_turno in ("FOLGA", "FERIAS", "AFASTAMENTO")
+                if (d_ant in folgas_set_ate_agora
+                        or d_prox in folgas_set_ate_agora
+                        or ant_folga):
+                    continue  # tenta próximo candidato
+                # ── Check: respeita mínimos do setor ──────────────────
                 dow    = d.weekday()
                 viavel = True
                 if setor in minimos:
@@ -986,8 +1004,32 @@ def gerar_escala_colab_auto(
                     folgas_no_dia[(d, setor)] += 1
                     break
 
+            # Fallback 1: ignora check de consecutivos mas mantém mínimos
+            if folga_ok is None:
+                for d in candidatos:
+                    if d not in datas_alvo:
+                        continue
+                    dow    = d.weekday()
+                    viavel = True
+                    if setor in minimos:
+                        for turno_key in ("MANHA", "TARDE"):
+                            min_val = minimos[setor][turno_key].get(dow, 0)
+                            if min_val > 0:
+                                disponiveis = setor_total[setor] - folgas_no_dia[(d, setor)]
+                                if disponiveis - 1 < min_val:
+                                    viavel = False
+                                    break
+                    if viavel:
+                        folga_ok = d
+                        folgas_no_dia[(d, setor)] += 1
+                        avisos.append(
+                            f"{f['nome']}: folga em {d.strftime('%d/%m')} "
+                            f"ficou próxima de outra folga."
+                        )
+                        break
+
+            # Fallback 2: força qualquer candidato com aviso de mínimo
             if folga_ok is None and candidatos:
-                # Força melhor candidato disponível com aviso
                 for d in candidatos:
                     if d in datas_alvo:
                         folga_ok = d
@@ -1035,6 +1077,7 @@ def gerar_escala_colab_auto(
                         streak = 0
 
         # ── Salva no banco ────────────────────────────────────────────────────
+        turno_trabalho = f.get("turno_padrao") or "MANHA+TARDE"
         escala_func = escala_exist.get(fid, {})
         for d in datas_alvo:
             iso = d.isoformat()
@@ -1043,7 +1086,7 @@ def gerar_escala_colab_auto(
             if d in folgas_set:
                 set_turno(fid, iso, "FOLGA")
             elif preencher_trabalho:
-                set_turno(fid, iso, "MANHA+TARDE")
+                set_turno(fid, iso, turno_trabalho)
 
     return {
         "gerados": len(funcionarios),
