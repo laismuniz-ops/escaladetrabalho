@@ -865,6 +865,44 @@ def gerar_escala_colab_auto(
     # ── Snapshot para undo ────────────────────────────────────────────────────
     _salvar_snapshot_colab(ano, mes)
 
+    # ── Contexto do mês anterior (semanas entre meses) ────────────────────────
+    mes_ant = mes - 1 if mes > 1 else 12
+    ano_ant = ano if mes > 1 else ano - 1
+    escala_mes_ant = escala_mensal(ano_ant, mes_ant, tipo="CONTRATADO")
+
+    # Primeira semana do mês: pode começar antes do dia 1
+    primeiro_dia_mes = datas_mes[0]
+    primeira_semana_seg = semanas[0][0]  # segunda-feira da 1ª semana
+
+    # Para cada funcionário: já tem folga na primeira semana (vinda do mês anterior)?
+    folga_na_primeira_sem: dict[int, bool] = {}
+    for f in funcionarios:
+        fid_tmp = f["id"]
+        folga_na_primeira_sem[fid_tmp] = False
+        if primeira_semana_seg < primeiro_dia_mes:
+            d_tmp = primeira_semana_seg
+            esc_ant_f = escala_mes_ant.get(fid_tmp, {})
+            while d_tmp < primeiro_dia_mes:
+                if esc_ant_f.get(d_tmp.isoformat(), "") in ("FOLGA", "FERIAS", "AFASTAMENTO"):
+                    folga_na_primeira_sem[fid_tmp] = True
+                    break
+                d_tmp += _td(days=1)
+
+    # Streak inicial: dias consecutivos de trabalho no final do mês anterior
+    streak_inicial: dict[int, int] = {}
+    for f in funcionarios:
+        fid_tmp = f["id"]
+        s_tmp = 0
+        d_tmp = primeiro_dia_mes - _td(days=1)
+        esc_ant_f = escala_mes_ant.get(fid_tmp, {})
+        while s_tmp < 6:
+            turno_tmp = esc_ant_f.get(d_tmp.isoformat(), "")
+            if turno_tmp in ("FOLGA", "FERIAS", "AFASTAMENTO") or not turno_tmp:
+                break
+            s_tmp += 1
+            d_tmp -= _td(days=1)
+        streak_inicial[fid_tmp] = s_tmp
+
     # ── Escala existente (para respeitar sobrescrever=False) ──────────────────
     escala_exist = {} if sobrescrever else escala_mensal(ano, mes, tipo="CONTRATADO")
 
@@ -903,6 +941,9 @@ def gerar_escala_colab_auto(
         folgas_planejadas: list[_date] = []
 
         for seg, dates_sem in semanas:
+            # Se a primeira semana já contém folga do mês anterior, pula
+            if seg == primeira_semana_seg and folga_na_primeira_sem.get(fid, False):
+                continue
             if seg in folgas_dom_semanas:
                 dom = dom_por_semana.get(seg)
                 candidatos = ([dom] if dom else []) + [
@@ -951,7 +992,7 @@ def gerar_escala_colab_auto(
 
         # ── Corrige streaks > 6 dias consecutivos ─────────────────────────────
         folgas_set = set(folgas_planejadas)
-        streak = 0
+        streak = streak_inicial.get(fid, 0)  # inicia com dias trabalhados no fim do mês anterior
         for d in datas_mes:
             if d in folgas_set:
                 streak = 0
