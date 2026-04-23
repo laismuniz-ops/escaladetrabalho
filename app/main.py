@@ -593,6 +593,17 @@ async def api_gerar_escala_colab(request: Request) -> dict:
     return resultado
 
 
+@app.post("/api/escala/limpar-mes")
+async def api_limpar_escala_mes(request: Request) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    mes_str = str(form.get("mes", ""))
+    ano, mes_num = _parse_mes(mes_str if mes_str else None)
+    n = models.limpar_escala_colab_mes(ano, mes_num)
+    return {"ok": True, "removidos": n}
+
+
 @app.post("/api/escala/restaurar-geracao-colab")
 async def api_restaurar_geracao_colab(request: Request) -> dict:
     if not auth.get_usuario_sessao(request):

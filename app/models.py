@@ -844,10 +844,14 @@ def gerar_escala_colab_auto(
 
     minimos = get_minimos()
 
-    # Total de CONTRATADOS por setor — usa TODOS (base correta para mínimos)
-    setor_total: dict[str, int] = defaultdict(int)
+    # Total de CONTRATADOS por (setor, turno) — usa TODOS, respeita turno_padrao
+    # Chave: (setor, turno_key) → quantos contratados trabalham naquele turno naquele setor
+    setor_turno_total: dict = defaultdict(int)
     for f in todos_funcionarios:
-        setor_total[f["setor"]] += 1
+        tp = f.get("turno_padrao") or "MANHA+TARDE"
+        for _tk in ("MANHA", "TARDE"):
+            if _tk in tp:
+                setor_turno_total[(f["setor"], _tk)] += 1
 
     # Filtra pelos setores selecionados (somente para geração, não para contagem de mínimos)
     if setores:
@@ -924,7 +928,8 @@ def gerar_escala_colab_auto(
     escala_exist = {} if sobrescrever else escala_mensal(ano, mes, tipo="CONTRATADO")
 
     avisos: list[str] = []
-    # Folgas já atribuídas por (data, setor) — para a checagem de mínimos
+    # Folgas já atribuídas por (data, setor, turno_key) — para a checagem de mínimos
+    # Só conta a folga no turno que o funcionário realmente trabalha
     folgas_no_dia: dict = defaultdict(int)
 
     # Índices de rotação por gênero
@@ -943,11 +948,16 @@ def gerar_escala_colab_auto(
         folgas_dom_semanas: set = set()
         n_disp = len(semanas_com_dom)
         if n_disp > 0:
-            if n_dom >= 2 and n_disp >= 2:
-                # Dois domingos consecutivos, rodando entre funcionárias
-                par = idx_g % (n_disp - 1)
+            if n_dom >= 2 and n_disp >= 3:
+                # A cada 15 dias: pula 1 domingo entre os dois (gap = 2 semanas)
+                max_start = n_disp - 2
+                par = idx_g % max(1, max_start)
                 folgas_dom_semanas.add(semanas_com_dom[par])
-                folgas_dom_semanas.add(semanas_com_dom[par + 1])
+                folgas_dom_semanas.add(semanas_com_dom[par + 2])
+            elif n_dom >= 2 and n_disp == 2:
+                # Só 2 domingos no mês: usa os 2 (já estão a 2 semanas de distância)
+                folgas_dom_semanas.add(semanas_com_dom[0])
+                folgas_dom_semanas.add(semanas_com_dom[1])
             else:
                 folgas_dom_semanas.add(semanas_com_dom[idx_g % n_disp])
 
@@ -991,21 +1001,28 @@ def gerar_escala_colab_auto(
                 # ── Check: respeita mínimos do setor ──────────────────
                 dow    = d.weekday()
                 viavel = True
+                turno_p_f = f.get("turno_padrao") or "MANHA+TARDE"
                 if setor in minimos:
                     for turno_key in ("MANHA", "TARDE"):
+                        if turno_key not in turno_p_f:
+                            continue  # folga deste func não afeta este turno
                         min_val = minimos[setor][turno_key].get(dow, 0)
                         if min_val > 0:
-                            disponiveis = setor_total[setor] - folgas_no_dia[(d, setor)]
-                            if disponiveis - 1 < min_val:
+                            base    = setor_turno_total[(setor, turno_key)]
+                            ocupados = folgas_no_dia[(d, setor, turno_key)]
+                            if base - ocupados - 1 < min_val:
                                 viavel = False
                                 break
                 if viavel:
                     folga_ok = d
-                    folgas_no_dia[(d, setor)] += 1
+                    for _tk in ("MANHA", "TARDE"):
+                        if _tk in turno_p_f:
+                            folgas_no_dia[(d, setor, _tk)] += 1
                     break
 
             # Fallback 1: ignora check de consecutivos mas mantém mínimos
             if folga_ok is None:
+                turno_p_f = f.get("turno_padrao") or "MANHA+TARDE"
                 for d in candidatos:
                     if d not in datas_alvo:
                         continue
@@ -1013,15 +1030,20 @@ def gerar_escala_colab_auto(
                     viavel = True
                     if setor in minimos:
                         for turno_key in ("MANHA", "TARDE"):
+                            if turno_key not in turno_p_f:
+                                continue
                             min_val = minimos[setor][turno_key].get(dow, 0)
                             if min_val > 0:
-                                disponiveis = setor_total[setor] - folgas_no_dia[(d, setor)]
-                                if disponiveis - 1 < min_val:
+                                base     = setor_turno_total[(setor, turno_key)]
+                                ocupados = folgas_no_dia[(d, setor, turno_key)]
+                                if base - ocupados - 1 < min_val:
                                     viavel = False
                                     break
                     if viavel:
                         folga_ok = d
-                        folgas_no_dia[(d, setor)] += 1
+                        for _tk in ("MANHA", "TARDE"):
+                            if _tk in turno_p_f:
+                                folgas_no_dia[(d, setor, _tk)] += 1
                         avisos.append(
                             f"{f['nome']}: folga em {d.strftime('%d/%m')} "
                             f"ficou próxima de outra folga."
@@ -1030,10 +1052,13 @@ def gerar_escala_colab_auto(
 
             # Fallback 2: força qualquer candidato com aviso de mínimo
             if folga_ok is None and candidatos:
+                turno_p_f = f.get("turno_padrao") or "MANHA+TARDE"
                 for d in candidatos:
                     if d in datas_alvo:
                         folga_ok = d
-                        folgas_no_dia[(d, setor)] += 1
+                        for _tk in ("MANHA", "TARDE"):
+                            if _tk in turno_p_f:
+                                folgas_no_dia[(d, setor, _tk)] += 1
                         avisos.append(
                             f"{f['nome']}: folga em {d.strftime('%d/%m')} "
                             f"pode deixar {setor.capitalize()} abaixo do mínimo."
@@ -1052,6 +1077,14 @@ def gerar_escala_colab_auto(
 
         folgas_set = set(folgas_planejadas)
         streak = streak_inicial.get(fid, 0)  # inicia com dias trabalhados no fim do mês anterior
+        turno_p_streak = f.get("turno_padrao") or "MANHA+TARDE"
+
+        def _add_folga_streak(c: "_date") -> None:
+            folgas_set.add(c)
+            for _tk in ("MANHA", "TARDE"):
+                if _tk in turno_p_streak:
+                    folgas_no_dia[(c, setor, _tk)] += 1
+
         for d in datas_mes:
             if d in folgas_set:
                 streak = 0
@@ -1066,8 +1099,7 @@ def gerar_escala_colab_auto(
                                 and c.weekday() in MIDWEEK_DOWS
                                 and c not in folgas_set
                                 and _nao_consecutiva(c, folgas_set)):
-                            folgas_set.add(c)
-                            folgas_no_dia[(c, setor)] += 1
+                            _add_folga_streak(c)
                             avisos.append(
                                 f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
                                 f"para evitar 7 dias seguidos."
@@ -1083,8 +1115,7 @@ def gerar_escala_colab_auto(
                                     and c.weekday() in MIDWEEK_DOWS
                                     and c not in folgas_set
                                     and _nao_consecutiva(c, folgas_set)):
-                                folgas_set.add(c)
-                                folgas_no_dia[(c, setor)] += 1
+                                _add_folga_streak(c)
                                 avisos.append(
                                     f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
                                     f"para evitar 7 dias seguidos."
@@ -1099,8 +1130,7 @@ def gerar_escala_colab_auto(
                             if (c in datas_alvo
                                     and c.weekday() in MIDWEEK_DOWS
                                     and c not in folgas_set):
-                                folgas_set.add(c)
-                                folgas_no_dia[(c, setor)] += 1
+                                _add_folga_streak(c)
                                 avisos.append(
                                     f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
                                     f"(próxima de outra folga) para evitar 7 dias seguidos."
@@ -1119,8 +1149,7 @@ def gerar_escala_colab_auto(
                                     alvo = c
                                     break
                         if alvo and alvo not in folgas_set:
-                            folgas_set.add(alvo)
-                            folgas_no_dia[(alvo, setor)] += 1
+                            _add_folga_streak(alvo)
                             avisos.append(
                                 f"{f['nome']}: folga forçada em {alvo.strftime('%d/%m')} "
                                 f"para evitar 7 dias seguidos."
@@ -1144,3 +1173,18 @@ def gerar_escala_colab_auto(
         "dias_alvo": len(datas_alvo),
         "avisos": avisos,
     }
+
+
+def limpar_escala_colab_mes(ano: int, mes: int) -> int:
+    """Remove toda a escala de contratados do mês. Retorna o número de registros apagados."""
+    primeiro = f"{ano:04d}-{mes:02d}-01"
+    proximo  = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
+    with db_cursor() as cur:
+        cur.execute("""
+            DELETE FROM escala
+            WHERE data >= ? AND data < ?
+              AND funcionario_id IN (
+                  SELECT id FROM funcionarios WHERE tipo = 'CONTRATADO'
+              )
+        """, (primeiro, proximo))
+        return cur.rowcount

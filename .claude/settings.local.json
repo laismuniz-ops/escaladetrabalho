@@ -98,7 +98,11 @@
       "Bash(python3 -c \"from app.database import init_db; init_db\\(\\); from app.models import listar_entregadores; e = listar_entregadores\\(\\)[0]; print\\(list\\(e.keys\\(\\)\\)\\)\")",
       "Bash(python3 -c \"from app.database import init_db; init_db\\(\\); from app.models import limpar_escala_entregadores; print\\('OK'\\)\")",
       "Bash(python3 -c \"from app.database import init_db; init_db\\(\\); from app.models import listar_feriados_ano; f = listar_feriados_ano\\(2026\\); print\\(len\\(f\\), 'feriados em 2026'\\); print\\(list\\(f.items\\(\\)\\)[:3]\\)\")",
-      "Bash(sqlite3 data/escala.db ':*)"
+      "Bash(sqlite3 data/escala.db ':*)",
+      "Bash(python -c \"from app import models; print\\('OK'\\)\")",
+      "Bash(python3 -c \"from app import models; print\\('OK'\\)\")",
+      "Bash(python3 -c \"from app import main; print\\('OK'\\)\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

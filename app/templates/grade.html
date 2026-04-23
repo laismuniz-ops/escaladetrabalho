@@ -32,6 +32,10 @@
                         class="gs-btn gs-btn-ghost text-xs py-2 px-3 whitespace-nowrap">
                     ↩ Desfazer geração
                 </button>
+                <button type="button" onclick="limparEscalaMes()"
+                        class="gs-btn gs-btn-danger text-xs py-2 px-3 whitespace-nowrap">
+                    🗑 Limpar escala
+                </button>
                 <a href="/pdf/contratado?mes={{ mes_str }}" class="gs-btn gs-btn-ghost text-xs py-2 px-3">↓ PDF Contratados</a>
                 <a href="/pdf/extra?mes={{ mes_str }}" class="gs-btn gs-btn-ghost text-xs py-2 px-3">↓ PDF Extras</a>
             </div>
@@ -164,7 +168,7 @@
 
         <div class="gs-alert-ok text-xs">
             Gera <strong>FOLGA</strong> (1× por semana) e preenche os demais dias com o <strong>turno do colaborador</strong>.<br>
-            Regras: mulheres 2 domingos/mês, homens 1. Folgas mid-week: Ter/Qua/Qui.<br>
+            Regras: mulheres folga de domingo a cada 15 dias, homens 1/mês. Folgas mid-week: Ter/Qua/Qui.<br>
             Respeita os mínimos de escala configurados.
         </div>
 
@@ -526,6 +530,26 @@ async function desfazerGeracaoColab() {
         location.reload();
     } else {
         alert(data.erro || 'Erro ao desfazer.');
+    }
+}
+
+async function limparEscalaMes() {
+    const mes = document.querySelector('input[name="mes"]')?.value || '';
+    const label = mes || 'este mês';
+    if (!confirm(`Limpar TODA a escala de contratados de ${label}?\n\nEsta ação apaga tudo e não pode ser desfeita.`)) return;
+    const fd = new FormData();
+    fd.append('mes', mes);
+    try {
+        const r    = await fetch('/api/escala/limpar-mes', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (data.ok) {
+            alert(`${data.removidos} registro(s) removido(s).`);
+            location.reload();
+        } else {
+            alert(data.erro || 'Erro ao limpar.');
+        }
+    } catch {
+        alert('Erro ao comunicar com o servidor.');
     }
 }
 </script>
