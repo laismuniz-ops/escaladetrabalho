@@ -1044,6 +1044,12 @@ def gerar_escala_colab_auto(
                 folgas_planejadas.append(folga_ok)
 
         # ── Corrige streaks > 6 dias consecutivos ─────────────────────────────
+        DIAS_VALIDOS_FOLGA = set(MIDWEEK_DOWS) | {6}  # Ter/Qua/Qui + Dom
+
+        def _nao_consecutiva(c, fs):
+            """True se c não está adjacente a nenhuma folga já em fs."""
+            return (c - _td(days=1)) not in fs and (c + _td(days=1)) not in fs
+
         folgas_set = set(folgas_planejadas)
         streak = streak_inicial.get(fid, 0)  # inicia com dias trabalhados no fim do mês anterior
         for d in datas_mes:
@@ -1053,11 +1059,13 @@ def gerar_escala_colab_auto(
                 streak += 1
                 if streak == 7:
                     inserido = False
-                    for k in range(1, 5):
+                    # Passa 1: olha para trás (até 6 dias), sem criar consecutivos
+                    for k in range(1, 7):
                         c = d - _td(days=k)
                         if (c in datas_alvo
                                 and c.weekday() in MIDWEEK_DOWS
-                                and c not in folgas_set):
+                                and c not in folgas_set
+                                and _nao_consecutiva(c, folgas_set)):
                             folgas_set.add(c)
                             folgas_no_dia[(c, setor)] += 1
                             avisos.append(
@@ -1067,14 +1075,57 @@ def gerar_escala_colab_auto(
                             streak = 0
                             inserido = True
                             break
+                    # Passa 2: olha para frente (até 6 dias), sem criar consecutivos
                     if not inserido:
-                        folgas_set.add(d)
-                        folgas_no_dia[(d, setor)] += 1
-                        avisos.append(
-                            f"{f['nome']}: folga forçada em {d.strftime('%d/%m')} "
-                            f"para evitar 7 dias seguidos."
-                        )
-                        streak = 0
+                        for k in range(1, 7):
+                            c = d + _td(days=k)
+                            if (c in datas_alvo
+                                    and c.weekday() in MIDWEEK_DOWS
+                                    and c not in folgas_set
+                                    and _nao_consecutiva(c, folgas_set)):
+                                folgas_set.add(c)
+                                folgas_no_dia[(c, setor)] += 1
+                                avisos.append(
+                                    f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
+                                    f"para evitar 7 dias seguidos."
+                                )
+                                streak = 0
+                                inserido = True
+                                break
+                    # Passa 3: aceita consecutivo se não houver outra opção
+                    if not inserido:
+                        for k in range(1, 7):
+                            c = d - _td(days=k)
+                            if (c in datas_alvo
+                                    and c.weekday() in MIDWEEK_DOWS
+                                    and c not in folgas_set):
+                                folgas_set.add(c)
+                                folgas_no_dia[(c, setor)] += 1
+                                avisos.append(
+                                    f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
+                                    f"(próxima de outra folga) para evitar 7 dias seguidos."
+                                )
+                                streak = 0
+                                inserido = True
+                                break
+                    # Fallback absoluto: usa d somente se for dia válido de folga
+                    if not inserido:
+                        alvo = d if d.weekday() in DIAS_VALIDOS_FOLGA else None
+                        if alvo is None:
+                            # Busca o próximo dia válido
+                            for k in range(1, 8):
+                                c = d + _td(days=k)
+                                if c in datas_alvo and c.weekday() in DIAS_VALIDOS_FOLGA and c not in folgas_set:
+                                    alvo = c
+                                    break
+                        if alvo and alvo not in folgas_set:
+                            folgas_set.add(alvo)
+                            folgas_no_dia[(alvo, setor)] += 1
+                            avisos.append(
+                                f"{f['nome']}: folga forçada em {alvo.strftime('%d/%m')} "
+                                f"para evitar 7 dias seguidos."
+                            )
+                            streak = 0
 
         # ── Salva no banco ────────────────────────────────────────────────────
         turno_trabalho = f.get("turno_padrao") or "MANHA+TARDE"
