@@ -23,8 +23,16 @@
                     <option value="EXTRA" {% if tipo_filtro == 'EXTRA' %}selected{% endif %}>Extras</option>
                 </select>
             </div>
-            <div class="flex gap-2">
-                <a href="/pdf/contratado?mes={{ mes_str }}" class="gs-btn gs-btn-primary text-xs py-2 px-3">↓ PDF Contratados</a>
+            <div class="flex gap-2 flex-wrap">
+                <button type="button" onclick="abrirModalGerarColab()"
+                        class="gs-btn gs-btn-primary text-xs py-2 px-3 whitespace-nowrap">
+                    ⚡ Gerar folgas
+                </button>
+                <button type="button" onclick="desfazerGeracaoColab()"
+                        class="gs-btn gs-btn-ghost text-xs py-2 px-3 whitespace-nowrap">
+                    ↩ Desfazer geração
+                </button>
+                <a href="/pdf/contratado?mes={{ mes_str }}" class="gs-btn gs-btn-ghost text-xs py-2 px-3">↓ PDF Contratados</a>
                 <a href="/pdf/extra?mes={{ mes_str }}" class="gs-btn gs-btn-ghost text-xs py-2 px-3">↓ PDF Extras</a>
             </div>
         </form>
@@ -142,6 +150,48 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
+
+
+    <!-- Modal geração automática de colaboradores -->
+    <div id="modal-gerar-colab" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md my-6 p-6 space-y-4">
+
+        <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold uppercase tracking-wide">⚡ Gerar Escala — Contratados</h2>
+            <button onclick="fecharModalGerarColab()" class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
+        </div>
+
+        <div class="gs-alert-ok text-xs">
+            Gera <strong>FOLGA</strong> (1× por semana) e <strong>M+T</strong> para os dias restantes.<br>
+            Regras: mulheres 2 domingos/mês, homens 1. Folgas mid-week: Ter/Qua/Qui.<br>
+            Respeita os mínimos de escala configurados.
+        </div>
+
+        <div class="space-y-3">
+            <div>
+                <label class="gs-section-title block mb-1">Mês</label>
+                <input type="month" id="gc-mes" value="{{ mes_str }}" class="gs-input">
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" id="gc-preencher" checked class="accent-black">
+                    Preencher dias de trabalho com M+T
+                </label>
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" id="gc-sobrescrever" class="accent-black">
+                    Sobrescrever existente
+                </label>
+            </div>
+        </div>
+
+        <div id="gc-resultado" class="hidden text-xs space-y-1"></div>
+
+        <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
+            <button onclick="fecharModalGerarColab()" class="gs-btn gs-btn-ghost">Fechar</button>
+            <button onclick="executarGerarColab()" id="btn-gerar-colab" class="gs-btn gs-btn-primary">⚡ Gerar</button>
+        </div>
+    </div>
     </div>
 
 </div>
@@ -378,5 +428,68 @@ document.getElementById("tm-limpar").addEventListener("click", ev => {
 // Fechar ao clicar fora / Esc
 document.addEventListener("click", fecharMenu);
 document.addEventListener("keydown", e => { if (e.key === "Escape") fecharMenu(); });
+
+// ─── Modal de geração automática de colaboradores ────────────────────────────
+
+function abrirModalGerarColab() {
+    document.getElementById('gc-resultado').classList.add('hidden');
+    document.getElementById('modal-gerar-colab').classList.remove('hidden');
+}
+function fecharModalGerarColab() {
+    document.getElementById('modal-gerar-colab').classList.add('hidden');
+}
+
+async function executarGerarColab() {
+    const btn = document.getElementById('btn-gerar-colab');
+    btn.disabled = true;
+    btn.textContent = 'Gerando…';
+    const div = document.getElementById('gc-resultado');
+    div.classList.add('hidden');
+    try {
+        const fd = new FormData();
+        fd.append('mes',               document.getElementById('gc-mes').value);
+        fd.append('preencher_trabalho', document.getElementById('gc-preencher').checked ? '1' : '0');
+        fd.append('sobrescrever',       document.getElementById('gc-sobrescrever').checked ? '1' : '0');
+        const r    = await fetch('/api/escala/gerar-auto', { method: 'POST', body: fd });
+        const data = await r.json();
+
+        if (data.erro) {
+            div.innerHTML = `<div class="gs-alert-erro">${data.erro}</div>`;
+        } else {
+            let html = `<div class="gs-alert-ok">✓ Escala gerada para <strong>${data.gerados}</strong> contratado(s), `
+                     + `<strong>${data.dias_alvo}</strong> dia(s).</div>`;
+            if (data.avisos && data.avisos.length) {
+                html += `<div class="gs-alert-aviso mt-2 space-y-0.5">`
+                      + data.avisos.map(a => `<div>⚠ ${a}</div>`).join('')
+                      + `</div>`;
+            }
+            div.innerHTML = html;
+            // Recarrega a página para refletir a escala gerada
+            setTimeout(() => location.reload(), 1500);
+        }
+        div.classList.remove('hidden');
+    } catch (e) {
+        div.innerHTML = '<div class="gs-alert-erro">Erro ao gerar escala.</div>';
+        div.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Gerar';
+    }
+}
+
+async function desfazerGeracaoColab() {
+    if (!confirm('Desfazer a última geração automática de colaboradores?')) return;
+    const mes = document.querySelector('input[name="mes"]')?.value || '';
+    const fd  = new FormData();
+    fd.append('mes', mes);
+    const r    = await fetch('/api/escala/restaurar-geracao-colab', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (data.ok) {
+        alert(`Geração desfeita. ${data.restaurados} registro(s) restaurado(s).`);
+        location.reload();
+    } else {
+        alert(data.erro || 'Erro ao desfazer.');
+    }
+}
 </script>
 {% endblock %}

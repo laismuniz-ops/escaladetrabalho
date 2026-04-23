@@ -484,10 +484,11 @@ def criar_func(
     cargo: str = Form(...),
     setor: str = Form(...),
     tipo: str = Form(...),
+    genero: str = Form("M"),
 ) -> RedirectResponse:
     if redir := auth.verificar_permissao(request, "cadastros"):
         return redir
-    models.criar_funcionario(nome.strip(), cargo.strip(), setor.strip(), tipo)
+    models.criar_funcionario(nome.strip(), cargo.strip(), setor.strip(), tipo, genero=genero)
     return RedirectResponse(url="/cadastros", status_code=303)
 
 
@@ -500,12 +501,13 @@ def atualizar_func(
     setor: str = Form(...),
     tipo: str = Form(...),
     ativo: str = Form("1"),
+    genero: str = Form("M"),
 ) -> RedirectResponse:
     if redir := auth.verificar_permissao(request, "cadastros"):
         return redir
     models.atualizar_funcionario(
         func_id, nome=nome.strip(), cargo=cargo.strip(),
-        setor=setor.strip(), tipo=tipo, ativo=(ativo == "1"),
+        setor=setor.strip(), tipo=tipo, ativo=(ativo == "1"), genero=genero,
     )
     return RedirectResponse(url="/cadastros", status_code=303)
 
@@ -562,6 +564,39 @@ def api_set_nota(
         raise HTTPException(401, "Não autenticado")
     models.set_nota(funcionario_id, data, texto)
     return {"ok": True, "data": data, "texto": texto.strip()}
+
+
+# ---------- Geração automática colaboradores ----------
+
+@app.post("/api/escala/gerar-auto")
+async def api_gerar_escala_colab(request: Request) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    mes_str = str(form.get("mes", ""))
+    ano, mes_num = _parse_mes(mes_str if mes_str else None)
+    sobrescrever      = form.get("sobrescrever", "") == "1"
+    preencher_trabalho = form.get("preencher_trabalho", "1") == "1"
+    dias_raw          = form.getlist("dias_especificos")
+    dias_especificos  = dias_raw if dias_raw else None
+    resultado = models.gerar_escala_colab_auto(
+        ano, mes_num, sobrescrever, preencher_trabalho, dias_especificos
+    )
+    return resultado
+
+
+@app.post("/api/escala/restaurar-geracao-colab")
+async def api_restaurar_geracao_colab(request: Request) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    form = await request.form()
+    mes_str = str(form.get("mes", ""))
+    ano, mes_num = _parse_mes(mes_str if mes_str else None)
+    try:
+        n = models.restaurar_snapshot_colab(ano, mes_num)
+        return {"ok": True, "restaurados": n}
+    except ValueError as e:
+        return {"ok": False, "erro": str(e)}
 
 
 # ---------- Entregadores ----------

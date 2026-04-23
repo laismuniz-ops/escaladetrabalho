@@ -18,6 +18,7 @@
                 <th>Cargo</th>
                 <th>Setor</th>
                 <th>Tipo</th>
+                <th>Gênero</th>
                 <th class="text-center">Status</th>
                 <th class="text-right">Ações</th>
             </tr>
@@ -61,6 +62,12 @@
                     <option value="EXTRA" {% if f.tipo == 'EXTRA' %}selected{% endif %}>Extra</option>
                 </select>
             </td>
+            <td>
+                <select form="ff-{{ f.id }}" name="genero" class="gs-input text-sm py-1.5 w-auto">
+                    <option value="M" {% if f.get('genero','M') == 'M' %}selected{% endif %}>Masculino</option>
+                    <option value="F" {% if f.get('genero','M') == 'F' %}selected{% endif %}>Feminino</option>
+                </select>
+            </td>
 
             <!-- Status: toggle ativo/inativo -->
             <td class="text-center">
@@ -101,7 +108,7 @@
     <div class="gs-card p-6">
         <h2 class="gs-section-title mb-4">Novo Funcionário</h2>
         <form method="post" action="/api/funcionarios">
-            <div class="grid md:grid-cols-5 gap-3">
+            <div class="grid md:grid-cols-6 gap-3">
                 <input name="nome" placeholder="Nome" required class="gs-input md:col-span-2">
                 <input name="cargo" placeholder="Cargo" required class="gs-input">
                 <select name="setor" required class="gs-input">
@@ -114,7 +121,11 @@
                     <option value="CONTRATADO">Contratado</option>
                     <option value="EXTRA">Extra</option>
                 </select>
-                <button type="submit" class="gs-btn gs-btn-primary md:col-span-5">+ Cadastrar</button>
+                <select name="genero" class="gs-input">
+                    <option value="M">Masculino</option>
+                    <option value="F">Feminino</option>
+                </select>
+                <button type="submit" class="gs-btn gs-btn-primary md:col-span-6">+ Cadastrar</button>
             </div>
         </form>
     </div>

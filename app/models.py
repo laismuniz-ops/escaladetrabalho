@@ -37,15 +37,15 @@ def obter_funcionario(func_id: int) -> Optional[dict]:
 
 
 def criar_funcionario(
-    nome: str, cargo: str, setor: str, tipo: str, ordem: int = 0
+    nome: str, cargo: str, setor: str, tipo: str, ordem: int = 0, genero: str = "M"
 ) -> int:
     if tipo not in TIPOS_VALIDOS:
         raise ValueError(f"tipo inválido: {tipo}")
     with db_cursor() as cur:
         cur.execute(
-            """INSERT INTO funcionarios (nome, cargo, setor, tipo, ordem)
-               VALUES (?, ?, ?, ?, ?)""",
-            (nome, cargo, setor.upper(), tipo, ordem),
+            """INSERT INTO funcionarios (nome, cargo, setor, tipo, ordem, genero)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (nome, cargo, setor.upper(), tipo, ordem, genero.upper()),
         )
         return cur.lastrowid
 
@@ -57,6 +57,7 @@ def atualizar_funcionario(
     setor: Optional[str] = None,
     tipo: Optional[str] = None,
     ativo: Optional[bool] = None,
+    genero: Optional[str] = None,
 ) -> None:
     campos = []
     valores: list = []
@@ -77,6 +78,9 @@ def atualizar_funcionario(
     if ativo is not None:
         campos.append("ativo = ?")
         valores.append(1 if ativo else 0)
+    if genero is not None:
+        campos.append("genero = ?")
+        valores.append(genero.upper())
     if not campos:
         return
     valores.append(func_id)
@@ -763,3 +767,234 @@ def limpar_escala_entregadores(ano: int, mes: int, dias_especificos: list = None
                 (primeiro, proximo),
             )
             return cur.rowcount
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Geração automática de escala de colaboradores CONTRATADOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_undo_colab: dict = {}
+
+
+def _salvar_snapshot_colab(ano: int, mes: int) -> None:
+    """Snapshot do mês para undo da geração de colaboradores."""
+    primeiro = f"{ano:04d}-{mes:02d}-01"
+    proximo  = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT funcionario_id, data, turno FROM escala WHERE data >= ? AND data < ?",
+            (primeiro, proximo),
+        )
+        _undo_colab[f"{ano:04d}-{mes:02d}"] = [dict(r) for r in cur.fetchall()]
+
+
+def restaurar_snapshot_colab(ano: int, mes: int) -> int:
+    """Desfaz a última geração automática de colaboradores."""
+    key = f"{ano:04d}-{mes:02d}"
+    if key not in _undo_colab:
+        raise ValueError("Nenhuma geração recente para desfazer neste mês.")
+    snapshot = _undo_colab.pop(key)
+    primeiro = f"{ano:04d}-{mes:02d}-01"
+    proximo  = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
+    with db_cursor() as cur:
+        cur.execute("DELETE FROM escala WHERE data >= ? AND data < ?", (primeiro, proximo))
+        for row in snapshot:
+            cur.execute(
+                "INSERT INTO escala (funcionario_id, data, turno) VALUES (?, ?, ?)",
+                (row["funcionario_id"], row["data"], row["turno"]),
+            )
+    return len(snapshot)
+
+
+def gerar_escala_colab_auto(
+    ano: int,
+    mes: int,
+    sobrescrever: bool = False,
+    preencher_trabalho: bool = True,
+    dias_especificos: list = None,
+) -> dict:
+    """
+    Gera escala automática de FOLGAS para colaboradores CONTRATADOS.
+
+    Regras:
+    • 1 folga por semana (Dom, Ter, Qua ou Qui — nunca Seg, Sex, Sáb)
+    • Mulheres: 2 folgas no domingo por mês; Homens: 1
+    • Domingos de folga são atribuídos em semanas consecutivas (evita streak > 6)
+    • Folgas mid-week são rotacionadas entre Ter/Qua/Qui por funcionário
+    • Respeita mínimos de escala por setor/turno/dia da semana
+    • Máximo 6 dias consecutivos de trabalho; folga extra inserida se necessário
+    • preencher_trabalho=True → dias sem folga recebem MANHA+TARDE
+    """
+    import calendar as _cal
+    from datetime import date as _date, timedelta as _td
+    from collections import defaultdict
+
+    MIDWEEK_DOWS = [1, 2, 3]  # Ter=1, Qua=2, Qui=3
+
+    funcionarios = listar_funcionarios(tipo="CONTRATADO", ativos_apenas=True)
+    if not funcionarios:
+        return {"erro": "Nenhum colaborador contratado ativo.", "gerados": 0, "avisos": []}
+
+    minimos = get_minimos()
+
+    # Total de CONTRATADOS por setor (base para checagem de mínimos)
+    setor_total: dict[str, int] = defaultdict(int)
+    for f in funcionarios:
+        setor_total[f["setor"]] += 1
+
+    num_dias = _cal.monthrange(ano, mes)[1]
+    datas_mes = [_date(ano, mes, d) for d in range(1, num_dias + 1)]
+    datas_alvo = (
+        sorted([_date.fromisoformat(d) for d in dias_especificos])
+        if dias_especificos else datas_mes
+    )
+
+    # ── Semanas do mês (Mon-Sun) ──────────────────────────────────────────────
+    semanas_dict: dict = {}
+    for d in datas_mes:
+        seg = d - _td(days=d.weekday())
+        semanas_dict.setdefault(seg, []).append(d)
+    semanas = sorted(semanas_dict.items())  # [(segunda, [datas...]), ...]
+
+    dom_por_semana: dict = {
+        seg: next((d for d in dates if d.weekday() == 6), None)
+        for seg, dates in semanas
+    }
+    semanas_com_dom = [seg for seg, dom in dom_por_semana.items() if dom is not None]
+
+    # ── Snapshot para undo ────────────────────────────────────────────────────
+    _salvar_snapshot_colab(ano, mes)
+
+    # ── Escala existente (para respeitar sobrescrever=False) ──────────────────
+    escala_exist = {} if sobrescrever else escala_mensal(ano, mes, tipo="CONTRATADO")
+
+    avisos: list[str] = []
+    # Folgas já atribuídas por (data, setor) — para a checagem de mínimos
+    folgas_no_dia: dict = defaultdict(int)
+
+    # Índices de rotação por gênero
+    idx_por_genero: dict[str, int] = {"M": 0, "F": 0}
+
+    for idx_global, f in enumerate(funcionarios):
+        fid    = f["id"]
+        genero = f.get("genero", "M")
+        setor  = f["setor"]
+        n_dom  = 2 if genero == "F" else 1
+
+        idx_g = idx_por_genero[genero]
+        idx_por_genero[genero] += 1
+
+        # ── Semanas com folga no domingo ──────────────────────────────────────
+        folgas_dom_semanas: set = set()
+        n_disp = len(semanas_com_dom)
+        if n_disp > 0:
+            if n_dom >= 2 and n_disp >= 2:
+                # Dois domingos consecutivos, rodando entre funcionárias
+                par = idx_g % (n_disp - 1)
+                folgas_dom_semanas.add(semanas_com_dom[par])
+                folgas_dom_semanas.add(semanas_com_dom[par + 1])
+            else:
+                folgas_dom_semanas.add(semanas_com_dom[idx_g % n_disp])
+
+        # Dia mid-week preferido (rotado por funcionário)
+        midweek_dow = MIDWEEK_DOWS[idx_global % 3]
+
+        # ── Plano de folgas semana a semana ───────────────────────────────────
+        folgas_planejadas: list[_date] = []
+
+        for seg, dates_sem in semanas:
+            if seg in folgas_dom_semanas:
+                dom = dom_por_semana.get(seg)
+                candidatos = ([dom] if dom else []) + [
+                    d for d in dates_sem if d.weekday() in MIDWEEK_DOWS
+                ]
+            else:
+                pref   = [d for d in dates_sem if d.weekday() == midweek_dow]
+                outras = [d for d in dates_sem if d.weekday() in MIDWEEK_DOWS
+                          and d.weekday() != midweek_dow]
+                candidatos = pref + outras
+
+            folga_ok = None
+            for d in candidatos:
+                if d not in datas_alvo:
+                    continue
+                # Checa se folga respeita mínimos do setor
+                dow    = d.weekday()
+                viavel = True
+                if setor in minimos:
+                    for turno_key in ("MANHA", "TARDE"):
+                        min_val = minimos[setor][turno_key].get(dow, 0)
+                        if min_val > 0:
+                            disponiveis = setor_total[setor] - folgas_no_dia[(d, setor)]
+                            if disponiveis - 1 < min_val:
+                                viavel = False
+                                break
+                if viavel:
+                    folga_ok = d
+                    folgas_no_dia[(d, setor)] += 1
+                    break
+
+            if folga_ok is None and candidatos:
+                # Força melhor candidato disponível com aviso
+                for d in candidatos:
+                    if d in datas_alvo:
+                        folga_ok = d
+                        folgas_no_dia[(d, setor)] += 1
+                        avisos.append(
+                            f"{f['nome']}: folga em {d.strftime('%d/%m')} "
+                            f"pode deixar {setor.capitalize()} abaixo do mínimo."
+                        )
+                        break
+
+            if folga_ok:
+                folgas_planejadas.append(folga_ok)
+
+        # ── Corrige streaks > 6 dias consecutivos ─────────────────────────────
+        folgas_set = set(folgas_planejadas)
+        streak = 0
+        for d in datas_mes:
+            if d in folgas_set:
+                streak = 0
+            else:
+                streak += 1
+                if streak == 7:
+                    inserido = False
+                    for k in range(1, 5):
+                        c = d - _td(days=k)
+                        if (c in datas_alvo
+                                and c.weekday() in MIDWEEK_DOWS
+                                and c not in folgas_set):
+                            folgas_set.add(c)
+                            folgas_no_dia[(c, setor)] += 1
+                            avisos.append(
+                                f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
+                                f"para evitar 7 dias seguidos."
+                            )
+                            streak = 0
+                            inserido = True
+                            break
+                    if not inserido:
+                        folgas_set.add(d)
+                        folgas_no_dia[(d, setor)] += 1
+                        avisos.append(
+                            f"{f['nome']}: folga forçada em {d.strftime('%d/%m')} "
+                            f"para evitar 7 dias seguidos."
+                        )
+                        streak = 0
+
+        # ── Salva no banco ────────────────────────────────────────────────────
+        escala_func = escala_exist.get(fid, {})
+        for d in datas_alvo:
+            iso = d.isoformat()
+            if not sobrescrever and iso in escala_func:
+                continue
+            if d in folgas_set:
+                set_turno(fid, iso, "FOLGA")
+            elif preencher_trabalho:
+                set_turno(fid, iso, "MANHA+TARDE")
+
+    return {
+        "gerados": len(funcionarios),
+        "dias_alvo": len(datas_alvo),
+        "avisos": avisos,
+    }

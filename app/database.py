@@ -94,6 +94,14 @@ def _migrate_entregadores_if_needed(cur) -> None:
         cur.execute("ALTER TABLE entregadores ADD COLUMN telefone TEXT NOT NULL DEFAULT ''")
 
 
+def _migrate_genero_if_needed(cur) -> None:
+    """Adiciona coluna genero a funcionarios se não existir (M/F, default M)."""
+    cur.execute("PRAGMA table_info(funcionarios)")
+    cols = [r["name"] for r in cur.fetchall()]
+    if cols and "genero" not in cols:
+        cur.execute("ALTER TABLE funcionarios ADD COLUMN genero TEXT NOT NULL DEFAULT 'M'")
+
+
 def _migrate_minimos_if_needed(cur) -> None:
     """Adiciona coluna dia_semana em minimos_escala se não existir."""
     cur.execute("PRAGMA table_info(minimos_escala)")
@@ -229,6 +237,7 @@ def init_db() -> None:
             );
             """
         )
+        _migrate_genero_if_needed(cur)
         _migrate_minimos_if_needed(cur)
         cur.execute(
             """
