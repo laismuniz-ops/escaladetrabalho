@@ -28,9 +28,9 @@
                         class="gs-btn gs-btn-primary text-xs py-2 px-3 whitespace-nowrap">
                     ⚡ Gerar escala
                 </button>
-                <button type="button" onclick="desfazerGeracaoColab()"
-                        class="gs-btn gs-btn-ghost text-xs py-2 px-3 whitespace-nowrap">
-                    ↩ Desfazer geração
+                <button type="button" id="btn-restaurar-colab" onclick="restaurarEscalaAnterior()"
+                        class="gs-btn gs-btn-ghost text-xs py-2 px-3 whitespace-nowrap hidden">
+                    ↩ Restaurar escala anterior
                 </button>
                 <button type="button" onclick="abrirModalLimparColab()"
                         class="gs-btn gs-btn-danger text-xs py-2 px-3 whitespace-nowrap">
@@ -580,19 +580,28 @@ async function executarGerarColab() {
     }
 }
 
-async function desfazerGeracaoColab() {
-    if (!confirm('Desfazer a última geração automática de colaboradores?')) return;
+async function restaurarEscalaAnterior() {
+    if (!confirm('Restaurar a escala anterior (desfaz a última geração ou limpeza)?')) return;
     const mes = document.querySelector('input[name="mes"]')?.value || '';
     const fd  = new FormData();
     fd.append('mes', mes);
     const r    = await fetch('/api/escala/restaurar-geracao-colab', { method: 'POST', body: fd });
     const data = await r.json();
     if (data.ok) {
-        alert(`Geração desfeita. ${data.restaurados} registro(s) restaurado(s).`);
         location.reload();
     } else {
-        alert(data.erro || 'Erro ao desfazer.');
+        alert(data.erro || 'Nenhuma escala anterior salva para este mês.');
     }
+}
+
+async function verificarSnapshotColab() {
+    const mes = document.querySelector('input[name="mes"]')?.value || '';
+    try {
+        const r = await fetch(`/api/escala/tem-snapshot-colab?mes=${encodeURIComponent(mes)}`);
+        const d = await r.json();
+        const btn = document.getElementById('btn-restaurar-colab');
+        if (btn) btn.classList.toggle('hidden', !d.tem);
+    } catch { /* silencioso */ }
 }
 
 // ─── Modal limpar escala ──────────────────────────────────────────────────────
@@ -636,5 +645,8 @@ async function executarLimparColab() {
         btn.textContent = '🗑 Limpar selecionados';
     }
 }
+
+// Verifica se existe snapshot ao carregar a página
+verificarSnapshotColab();
 </script>
 {% endblock %}

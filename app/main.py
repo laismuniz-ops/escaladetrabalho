@@ -635,6 +635,14 @@ async def api_restaurar_geracao_colab(request: Request) -> dict:
         return {"ok": False, "erro": str(e)}
 
 
+@app.get("/api/escala/tem-snapshot-colab")
+def api_tem_snapshot_colab(request: Request, mes: Optional[str] = None) -> dict:
+    if not auth.get_usuario_sessao(request):
+        raise HTTPException(401, "Não autenticado")
+    ano, mes_num = _parse_mes(mes)
+    return {"tem": models.tem_snapshot_colab(ano, mes_num)}
+
+
 # ---------- Entregadores ----------
 
 @app.get("/entregadores", response_class=HTMLResponse)

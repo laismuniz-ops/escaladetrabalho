@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from .database import db_cursor
+from pathlib import Path as _Path
+from .database import db_cursor, DB_PATH
 
 SETORES_ORDEM = ["COZINHA", "ATENDIMENTO", "ADMINISTRATIVO"]
 TURNOS_VALIDOS = {"MANHA", "TARDE", "FOLGA", "FERIAS", "AFASTAMENTO"}
@@ -787,9 +788,17 @@ def limpar_escala_entregadores(ano: int, mes: int, dias_especificos: list = None
 
 _undo_colab: dict = {}
 
+_SNAPSHOT_DIR = DB_PATH.parent / "snapshots"
+
+
+def _snapshot_path(ano: int, mes: int) -> _Path:
+    _SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    return _SNAPSHOT_DIR / f"colab_{ano:04d}_{mes:02d}.json"
+
 
 def _salvar_snapshot_colab(ano: int, mes: int) -> None:
-    """Snapshot do mês para undo da geração de colaboradores."""
+    """Snapshot do mês para undo — salvo em memória E em arquivo (persiste restart)."""
+    import json
     primeiro = f"{ano:04d}-{mes:02d}-01"
     proximo  = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
     with db_cursor() as cur:
@@ -797,15 +806,41 @@ def _salvar_snapshot_colab(ano: int, mes: int) -> None:
             "SELECT funcionario_id, data, turno FROM escala WHERE data >= ? AND data < ?",
             (primeiro, proximo),
         )
-        _undo_colab[f"{ano:04d}-{mes:02d}"] = [dict(r) for r in cur.fetchall()]
+        rows = [dict(r) for r in cur.fetchall()]
+    key = f"{ano:04d}-{mes:02d}"
+    _undo_colab[key] = rows
+    # Persiste em arquivo para sobreviver a restarts
+    try:
+        _snapshot_path(ano, mes).write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def tem_snapshot_colab(ano: int, mes: int) -> bool:
+    """Verifica se existe snapshot salvo para o mês."""
+    key = f"{ano:04d}-{mes:02d}"
+    if key in _undo_colab:
+        return True
+    return _snapshot_path(ano, mes).exists()
 
 
 def restaurar_snapshot_colab(ano: int, mes: int) -> int:
-    """Desfaz a última geração automática de colaboradores."""
+    """Restaura o snapshot mais recente (última geração ou limpeza) do mês."""
+    import json
     key = f"{ano:04d}-{mes:02d}"
-    if key not in _undo_colab:
-        raise ValueError("Nenhuma geração recente para desfazer neste mês.")
-    snapshot = _undo_colab.pop(key)
+    # Tenta memória primeiro, depois arquivo
+    if key in _undo_colab:
+        snapshot = _undo_colab.pop(key)
+    else:
+        p = _snapshot_path(ano, mes)
+        if not p.exists():
+            raise ValueError("Nenhuma geração recente para desfazer neste mês.")
+        snapshot = json.loads(p.read_text(encoding="utf-8"))
+    # Remove arquivo de snapshot após restaurar
+    try:
+        _snapshot_path(ano, mes).unlink(missing_ok=True)
+    except Exception:
+        pass
     primeiro = f"{ano:04d}-{mes:02d}-01"
     proximo  = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
     with db_cursor() as cur:
@@ -1270,7 +1305,9 @@ def gerar_escala_colab_auto(
 
 
 def limpar_escala_colab_mes(ano: int, mes: int, funcionario_ids: list = None) -> int:
-    """Remove escala de contratados do mês. Se funcionario_ids fornecido, remove apenas esses."""
+    """Remove escala de contratados do mês. Salva snapshot antes (permite restaurar)."""
+    # Salva snapshot antes de apagar — permite desfazer mesmo após restart
+    _salvar_snapshot_colab(ano, mes)
     primeiro = f"{ano:04d}-{mes:02d}-01"
     proximo  = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
     with db_cursor() as cur:
