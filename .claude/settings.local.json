@@ -105,7 +105,11 @@
       "Bash(python3 -c ' *)",
       "Bash(python3 -c \"import ast; ast.parse\\(open\\('app/models.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(python3 -c \"import sys; sys.path.insert\\(0, '.'\\); import app.models\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(python3 -c \"import app.models; print\\('OK'\\)\")",
+      "Bash(python3 -c \"import app.main; print\\('OK'\\)\")",
+      "Bash(python3 -c \"import app.models; print\\(app.models.SETORES_ORDEM\\)\")",
+      "Bash(python3)"
     ]
   }
 }

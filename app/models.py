@@ -825,13 +825,15 @@ def gerar_escala_colab_auto(
     preencher_trabalho: bool = True,
     dias_especificos: list = None,
     setores: list = None,
+    funcionario_ids: list = None,
 ) -> dict:
     """
     Gera escala automática de FOLGAS para colaboradores CONTRATADOS.
 
     Regras:
     • 1 folga por semana (Dom, Ter, Qua ou Qui — nunca Seg, Sex, Sáb)
-    • Mulheres: folga de domingo a cada 15 dias (ciclo contínuo entre meses); Homens: 1/mês
+    • Mulheres: folga obrigatória no 3° domingo consecutivo trabalhado (ciclo contínuo entre meses)
+    • Homens: 1 folga de domingo por mês
     • Folgas mid-week são rotacionadas entre Seg/Ter/Qua por funcionário
     • Respeita mínimos de escala por setor/turno/dia da semana
     • Sem folgas consecutivas (dias adjacentes)
@@ -866,15 +868,16 @@ def gerar_escala_colab_auto(
             if _tk in tp:
                 setor_turno_total[(f["setor"], _tk)] += 1
 
-    # Filtra pelos setores selecionados (somente para geração, não para contagem de mínimos)
+    # Filtra pelos funcionários/setores selecionados (somente para geração, não para contagem de mínimos)
+    funcionarios = todos_funcionarios
     if setores:
-        funcionarios = [f for f in todos_funcionarios if f["setor"] in setores]
-    else:
-        funcionarios = todos_funcionarios
+        funcionarios = [f for f in funcionarios if f["setor"] in setores]
+    if funcionario_ids is not None:
+        ids_set = {int(i) for i in funcionario_ids}
+        funcionarios = [f for f in funcionarios if f["id"] in ids_set]
 
     if not funcionarios:
-        setores_str = ", ".join(setores) if setores else "—"
-        return {"erro": f"Nenhum colaborador nos setores selecionados ({setores_str}).", "gerados": 0, "avisos": []}
+        return {"erro": "Nenhum colaborador nos filtros selecionados.", "gerados": 0, "avisos": []}
 
     num_dias = _cal.monthrange(ano, mes)[1]
     datas_mes = [_date(ano, mes, d) for d in range(1, num_dias + 1)]
@@ -965,37 +968,30 @@ def gerar_escala_colab_auto(
         folgas_dom_semanas: set = set()
         n_disp = len(semanas_com_dom)
         if n_disp > 0:
-            sundays_list = [dom_por_semana[s] for s in semanas_com_dom]
             if n_dom >= 2:
-                # Tenta manter o ciclo de 14 dias baseado no último domingo
-                # de folga do mês anterior (evita quebra do ciclo entre meses)
+                # Mulheres: folga obrigatória no 3° domingo consecutivo trabalhado
+                # Conta domingos consecutivos trabalhados no fim do mês anterior
                 esc_ant_f_map = escala_mes_ant.get(fid, {})
-                ultimo_dom_off = None
-                for _iso_d in sorted(esc_ant_f_map.keys(), reverse=True):
-                    _d_chk = _date.fromisoformat(_iso_d)
-                    if (_d_chk.weekday() == 6
-                            and esc_ant_f_map[_iso_d] in ("FOLGA", "FERIAS", "AFASTAMENTO")):
-                        ultimo_dom_off = _d_chk
-                        break
-                if ultimo_dom_off is not None:
-                    # Primeiro domingo: o mais próximo de ultimo_dom_off + 14
-                    _target1 = ultimo_dom_off + _td(days=14)
-                    _idx1 = min(range(n_disp),
-                                key=lambda i: abs((sundays_list[i] - _target1).days))
-                    folgas_dom_semanas.add(semanas_com_dom[_idx1])
-                    _idx2 = _idx1 + 2
-                    if _idx2 < n_disp:
-                        folgas_dom_semanas.add(semanas_com_dom[_idx2])
-                else:
-                    # Sem histórico: rotação com gap de 2 semanas
-                    if n_disp >= 3:
-                        _max_st = n_disp - 2
-                        _par = idx_g % max(1, _max_st)
-                        folgas_dom_semanas.add(semanas_com_dom[_par])
-                        folgas_dom_semanas.add(semanas_com_dom[_par + 2])
+                consec_antes = 0
+                _num_dias_ant = _cal.monthrange(ano_ant, mes_ant)[1]
+                for _dd in range(_num_dias_ant, 0, -1):
+                    _dp = _date(ano_ant, mes_ant, _dd)
+                    if _dp.weekday() != 6:
+                        continue
+                    _t_prev = esc_ant_f_map.get(_dp.isoformat(), "")
+                    if not _t_prev or _t_prev in ("FOLGA", "FERIAS", "AFASTAMENTO"):
+                        break  # sem registro ou domingo de descanso — para a contagem
+                    consec_antes += 1
+                    if consec_antes >= 2:
+                        break  # máximo que precisamos saber é 2
+                # Determina quais domingos deste mês serão folga
+                _consec = consec_antes
+                for _s in semanas_com_dom:
+                    if _consec >= 2:
+                        folgas_dom_semanas.add(_s)   # 3° consecutivo → folga obrigatória
+                        _consec = 0
                     else:
-                        for _s in semanas_com_dom:
-                            folgas_dom_semanas.add(_s)
+                        _consec += 1                 # trabalha este domingo
             else:
                 # n_dom == 1 (homens): 1 domingo por mês
                 folgas_dom_semanas.add(semanas_com_dom[idx_g % n_disp])
@@ -1266,16 +1262,28 @@ def gerar_escala_colab_auto(
     }
 
 
-def limpar_escala_colab_mes(ano: int, mes: int) -> int:
-    """Remove toda a escala de contratados do mês. Retorna o número de registros apagados."""
+def limpar_escala_colab_mes(ano: int, mes: int, funcionario_ids: list = None) -> int:
+    """Remove escala de contratados do mês. Se funcionario_ids fornecido, remove apenas esses."""
     primeiro = f"{ano:04d}-{mes:02d}-01"
     proximo  = f"{ano+1:04d}-01-01" if mes == 12 else f"{ano:04d}-{mes+1:02d}-01"
     with db_cursor() as cur:
-        cur.execute("""
-            DELETE FROM escala
-            WHERE data >= ? AND data < ?
-              AND funcionario_id IN (
-                  SELECT id FROM funcionarios WHERE tipo = 'CONTRATADO'
-              )
-        """, (primeiro, proximo))
+        if funcionario_ids:
+            ids_tup = tuple(int(i) for i in funcionario_ids)
+            ph = ",".join("?" * len(ids_tup))
+            cur.execute(f"""
+                DELETE FROM escala
+                WHERE data >= ? AND data < ?
+                  AND funcionario_id IN ({ph})
+                  AND funcionario_id IN (
+                      SELECT id FROM funcionarios WHERE tipo = 'CONTRATADO'
+                  )
+            """, (primeiro, proximo) + ids_tup)
+        else:
+            cur.execute("""
+                DELETE FROM escala
+                WHERE data >= ? AND data < ?
+                  AND funcionario_id IN (
+                      SELECT id FROM funcionarios WHERE tipo = 'CONTRATADO'
+                  )
+            """, (primeiro, proximo))
         return cur.rowcount

@@ -295,12 +295,25 @@ def grade(request: Request, mes: Optional[str] = None, tipo: Optional[str] = Non
         if alertas:
             dias_alerta[iso] = alertas
     feriados = models.listar_feriados_ano(ano)
+    # Lista de contratados ativos por setor — sempre disponível para os modais de gerar/limpar
+    contratados_todos = models.listar_funcionarios(tipo="CONTRATADO", ativos_apenas=True)
+    contratados_por_setor: dict[str, list[dict]] = {}
+    for _cf in contratados_todos:
+        contratados_por_setor.setdefault(_cf["setor"], []).append(_cf)
+    for _s in contratados_por_setor:
+        contratados_por_setor[_s].sort(key=lambda f: (f["ordem"], f["id"]))
+    contratados_setores = sorted(
+        contratados_por_setor.keys(),
+        key=lambda s: models.SETORES_ORDEM.index(s) if s in models.SETORES_ORDEM else 99,
+    )
     return templates.TemplateResponse(
         "grade.html",
         _ctx(request, ano=ano, mes=mes_num, mes_str=f"{ano:04d}-{mes_num:02d}",
              tipo_filtro=tipo or "", dias=dias, por_setor=por_setor,
              setores=setores_ordenados, escalas=escalas,
-             minimos=minimos, dias_alerta=dias_alerta, feriados=feriados),
+             minimos=minimos, dias_alerta=dias_alerta, feriados=feriados,
+             contratados_por_setor=contratados_por_setor,
+             contratados_setores=contratados_setores),
     )
 
 
@@ -587,8 +600,10 @@ async def api_gerar_escala_colab(request: Request) -> dict:
     dias_especificos   = dias_raw if dias_raw else None
     setores_raw        = form.getlist("setores")
     setores            = setores_raw if setores_raw else None
+    func_ids_raw       = form.getlist("funcionario_ids")
+    funcionario_ids    = [int(i) for i in func_ids_raw if i] if func_ids_raw else None
     resultado = models.gerar_escala_colab_auto(
-        ano, mes_num, sobrescrever, preencher_trabalho, dias_especificos, setores
+        ano, mes_num, sobrescrever, preencher_trabalho, dias_especificos, setores, funcionario_ids
     )
     return resultado
 
@@ -600,7 +615,9 @@ async def api_limpar_escala_mes(request: Request) -> dict:
     form = await request.form()
     mes_str = str(form.get("mes", ""))
     ano, mes_num = _parse_mes(mes_str if mes_str else None)
-    n = models.limpar_escala_colab_mes(ano, mes_num)
+    func_ids_raw    = form.getlist("funcionario_ids")
+    funcionario_ids = [int(i) for i in func_ids_raw if i] if func_ids_raw else None
+    n = models.limpar_escala_colab_mes(ano, mes_num, funcionario_ids)
     return {"ok": True, "removidos": n}
 
 

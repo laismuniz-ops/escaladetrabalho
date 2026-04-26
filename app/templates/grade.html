@@ -32,7 +32,7 @@
                         class="gs-btn gs-btn-ghost text-xs py-2 px-3 whitespace-nowrap">
                     ↩ Desfazer geração
                 </button>
-                <button type="button" onclick="limparEscalaMes()"
+                <button type="button" onclick="abrirModalLimparColab()"
                         class="gs-btn gs-btn-danger text-xs py-2 px-3 whitespace-nowrap">
                     🗑 Limpar escala
                 </button>
@@ -159,7 +159,7 @@
 
     <!-- Modal geração automática de colaboradores -->
     <div id="modal-gerar-colab" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md my-6 p-6 space-y-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg my-6 p-6 space-y-4">
 
         <div class="flex items-center justify-between">
             <h2 class="text-base font-bold uppercase tracking-wide">⚡ Gerar Escala — Contratados</h2>
@@ -168,38 +168,49 @@
 
         <div class="gs-alert-ok text-xs">
             Gera <strong>FOLGA</strong> (1× por semana) e preenche os demais dias com o <strong>turno do colaborador</strong>.<br>
-            Regras: mulheres folga de domingo a cada 15 dias, homens 1/mês. Folgas mid-week: Seg/Ter/Qua.<br>
-            Respeita os mínimos de escala configurados.
+            Regras: mulheres folga no 3° domingo consecutivo trabalhado; homens 1/mês. Folgas mid-week: Seg/Ter/Qua.
         </div>
 
         <div class="space-y-3">
             <div>
                 <label class="gs-section-title block mb-1">Mês</label>
-                <input type="month" id="gc-mes" value="{{ mes_str }}" class="gs-input">
+                <input type="month" id="gc-mes" value="{{ mes_str }}" class="gs-input w-auto">
             </div>
 
+            <!-- Lista de contratados por setor (pré-selecionados) -->
             <div>
-                <label class="gs-section-title block mb-1">Setores a gerar</label>
-                <div class="flex flex-wrap gap-4">
+                <label class="gs-section-title block mb-2">Colaboradores a incluir</label>
+                <div class="space-y-3 max-h-64 overflow-y-auto border border-brand-border rounded-lg p-3">
+                {% for setor in contratados_setores %}
+                {% set lista = contratados_por_setor[setor] %}
+                {% if lista %}
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold uppercase tracking-wide text-brand-grey">{{ setor|capitalize }}</span>
+                        <button type="button" onclick="toggleSetor('gc', '{{ setor }}')"
+                                id="gc-btn-{{ setor }}"
+                                class="text-[0.65rem] text-brand-grey hover:text-black underline">desmarcar todos</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {% for f in lista %}
                     <label class="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" id="gc-setor-cozinha" checked class="accent-black">
-                        Cozinha
+                        <input type="checkbox" class="gc-func-check accent-black"
+                               data-setor="{{ setor }}" data-modal="gc"
+                               value="{{ f.id }}" checked>
+                        <span class="truncate">{{ f.nome }}</span>
                     </label>
-                    <label class="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" id="gc-setor-atendimento" checked class="accent-black">
-                        Atendimento
-                    </label>
-                    <label class="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" id="gc-setor-administrativo" class="accent-black">
-                        Administrativo
-                    </label>
+                    {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
                 </div>
             </div>
 
-            <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-4 flex-wrap">
                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                     <input type="checkbox" id="gc-preencher" checked class="accent-black">
-                    Preencher dias de trabalho com turno do colaborador
+                    Preencher dias de trabalho
                 </label>
                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                     <input type="checkbox" id="gc-sobrescrever" class="accent-black">
@@ -213,6 +224,55 @@
         <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
             <button onclick="fecharModalGerarColab()" class="gs-btn gs-btn-ghost">Fechar</button>
             <button onclick="executarGerarColab()" id="btn-gerar-colab" class="gs-btn gs-btn-primary">⚡ Gerar</button>
+        </div>
+    </div>
+    </div>
+
+    <!-- Modal limpar escala de colaboradores -->
+    <div id="modal-limpar-colab" class="hidden fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg my-6 p-6 space-y-4">
+
+        <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold uppercase tracking-wide">🗑 Limpar Escala — Contratados</h2>
+            <button onclick="fecharModalLimparColab()" class="text-brand-grey hover:text-black text-xl leading-none">&times;</button>
+        </div>
+
+        <div class="gs-alert-erro text-xs">
+            Remove <strong>todos os registros</strong> de escala dos colaboradores selecionados no mês. Esta ação não pode ser desfeita.
+        </div>
+
+        <div>
+            <label class="gs-section-title block mb-2">Colaboradores a limpar</label>
+            <div class="space-y-3 max-h-64 overflow-y-auto border border-brand-border rounded-lg p-3">
+            {% for setor in contratados_setores %}
+            {% set lista = contratados_por_setor[setor] %}
+            {% if lista %}
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold uppercase tracking-wide text-brand-grey">{{ setor|capitalize }}</span>
+                    <button type="button" onclick="toggleSetor('lc', '{{ setor }}')"
+                            id="lc-btn-{{ setor }}"
+                            class="text-[0.65rem] text-brand-grey hover:text-black underline">desmarcar todos</button>
+                </div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+                {% for f in lista %}
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" class="lc-func-check accent-black"
+                           data-setor="{{ setor }}" data-modal="lc"
+                           value="{{ f.id }}" checked>
+                    <span class="truncate">{{ f.nome }}</span>
+                </label>
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+            </div>
+        </div>
+
+        <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
+            <button onclick="fecharModalLimparColab()" class="gs-btn gs-btn-ghost">Cancelar</button>
+            <button onclick="executarLimparColab()" id="btn-limpar-colab" class="gs-btn gs-btn-danger">🗑 Limpar selecionados</button>
         </div>
     </div>
     </div>
@@ -452,10 +512,22 @@ document.getElementById("tm-limpar").addEventListener("click", ev => {
 document.addEventListener("click", fecharMenu);
 document.addEventListener("keydown", e => { if (e.key === "Escape") fecharMenu(); });
 
+// ─── Helpers: toggle todos de um setor ───────────────────────────────────────
+function toggleSetor(prefix, setor) {
+    const checks = document.querySelectorAll(`.${prefix}-func-check[data-setor="${setor}"]`);
+    const btn    = document.getElementById(`${prefix}-btn-${setor}`);
+    const algumMarcado = Array.from(checks).some(c => c.checked);
+    checks.forEach(c => { c.checked = !algumMarcado; });
+    btn.textContent = algumMarcado ? 'marcar todos' : 'desmarcar todos';
+}
+
 // ─── Modal de geração automática de colaboradores ────────────────────────────
 
 function abrirModalGerarColab() {
     document.getElementById('gc-resultado').classList.add('hidden');
+    // Reseleciona todos ao abrir
+    document.querySelectorAll('.gc-func-check').forEach(c => { c.checked = true; });
+    document.querySelectorAll('[id^="gc-btn-"]').forEach(b => { b.textContent = 'desmarcar todos'; });
     document.getElementById('modal-gerar-colab').classList.remove('hidden');
 }
 function fecharModalGerarColab() {
@@ -473,27 +545,18 @@ async function executarGerarColab() {
         fd.append('mes',               document.getElementById('gc-mes').value);
         fd.append('preencher_trabalho', document.getElementById('gc-preencher').checked ? '1' : '0');
         fd.append('sobrescrever',       document.getElementById('gc-sobrescrever').checked ? '1' : '0');
-        // Setores selecionados
-        const setoresMap = {
-            'gc-setor-cozinha':        'COZINHA',
-            'gc-setor-atendimento':    'ATENDIMENTO',
-            'gc-setor-administrativo': 'ADMINISTRATIVO',
-        };
-        let algumSetor = false;
-        for (const [id, val] of Object.entries(setoresMap)) {
-            if (document.getElementById(id).checked) {
-                fd.append('setores', val);
-                algumSetor = true;
-            }
-        }
-        if (!algumSetor) {
-            div.innerHTML = '<div class="gs-alert-erro">Selecione ao menos um setor.</div>';
+        // IDs dos funcionários selecionados
+        const checks = document.querySelectorAll('.gc-func-check:checked');
+        if (!checks.length) {
+            div.innerHTML = '<div class="gs-alert-erro">Selecione ao menos um colaborador.</div>';
             div.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = '⚡ Gerar';
             return;
         }
+        checks.forEach(c => fd.append('funcionario_ids', c.value));
         const r    = await fetch('/api/escala/gerar-auto', { method: 'POST', body: fd });
         const data = await r.json();
-
         if (data.erro) {
             div.innerHTML = `<div class="gs-alert-erro">${data.erro}</div>`;
         } else {
@@ -505,7 +568,6 @@ async function executarGerarColab() {
                       + `</div>`;
             }
             div.innerHTML = html;
-            // Recarrega a página para refletir a escala gerada
             setTimeout(() => location.reload(), 1500);
         }
         div.classList.remove('hidden');
@@ -514,7 +576,7 @@ async function executarGerarColab() {
         div.classList.remove('hidden');
     } finally {
         btn.disabled = false;
-        btn.textContent = '⚡ Gerar escala';
+        btn.textContent = '⚡ Gerar';
     }
 }
 
@@ -533,23 +595,45 @@ async function desfazerGeracaoColab() {
     }
 }
 
-async function limparEscalaMes() {
-    const mes = document.querySelector('input[name="mes"]')?.value || '';
-    const label = mes || 'este mês';
-    if (!confirm(`Limpar TODA a escala de contratados de ${label}?\n\nEsta ação apaga tudo e não pode ser desfeita.`)) return;
+// ─── Modal limpar escala ──────────────────────────────────────────────────────
+
+function abrirModalLimparColab() {
+    // Reseleciona todos ao abrir
+    document.querySelectorAll('.lc-func-check').forEach(c => { c.checked = true; });
+    document.querySelectorAll('[id^="lc-btn-"]').forEach(b => { b.textContent = 'desmarcar todos'; });
+    document.getElementById('modal-limpar-colab').classList.remove('hidden');
+}
+function fecharModalLimparColab() {
+    document.getElementById('modal-limpar-colab').classList.add('hidden');
+}
+
+async function executarLimparColab() {
+    const checks = document.querySelectorAll('.lc-func-check:checked');
+    if (!checks.length) { alert('Selecione ao menos um colaborador.'); return; }
+    const nomes = Array.from(checks).map(c => c.nextElementSibling?.textContent?.trim()).join(', ');
+    const mes   = document.querySelector('input[name="mes"]')?.value || 'este mês';
+    if (!confirm(`Limpar escala de ${checks.length} colaborador(es) em ${mes}?\n\n${nomes}\n\nEsta ação não pode ser desfeita.`)) return;
+    const btn = document.getElementById('btn-limpar-colab');
+    btn.disabled = true;
+    btn.textContent = 'Limpando…';
     const fd = new FormData();
     fd.append('mes', mes);
+    checks.forEach(c => fd.append('funcionario_ids', c.value));
     try {
         const r    = await fetch('/api/escala/limpar-mes', { method: 'POST', body: fd });
         const data = await r.json();
         if (data.ok) {
             alert(`${data.removidos} registro(s) removido(s).`);
+            fecharModalLimparColab();
             location.reload();
         } else {
             alert(data.erro || 'Erro ao limpar.');
         }
     } catch {
         alert('Erro ao comunicar com o servidor.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🗑 Limpar selecionados';
     }
 }
 </script>
