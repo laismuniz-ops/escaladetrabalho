@@ -1007,15 +1007,25 @@ def gerar_escala_colab_auto(
         folgas_planejadas: list[_date] = []
 
         for seg, dates_sem in semanas:
-            # Se a primeira semana já contém folga do mês anterior, pula
-            if seg == primeira_semana_seg and folga_na_primeira_sem.get(fid, False):
-                continue
+            # Verifica se a primeira semana já tem folga do mês anterior
+            primeira_sem_bloq = (
+                seg == primeira_semana_seg and folga_na_primeira_sem.get(fid, False)
+            )
+
             if seg in folgas_dom_semanas:
                 dom = dom_por_semana.get(seg)
-                candidatos = ([dom] if dom else []) + [
-                    d for d in dates_sem if d.weekday() in MIDWEEK_DOWS
-                ]
+                if primeira_sem_bloq:
+                    # Já tem folga do mês anterior nesta semana: tenta apenas o domingo
+                    # (dias mid-week da primeira semana pertencem ao mês anterior)
+                    candidatos = [dom] if dom else []
+                else:
+                    candidatos = ([dom] if dom else []) + [
+                        d for d in dates_sem if d.weekday() in MIDWEEK_DOWS
+                    ]
             else:
+                if primeira_sem_bloq:
+                    # Sem domingo de folga + folga do mês anterior: pula a semana
+                    continue
                 pref   = [d for d in dates_sem if d.weekday() == midweek_dow]
                 outras = [d for d in dates_sem if d.weekday() in MIDWEEK_DOWS
                           and d.weekday() != midweek_dow]
