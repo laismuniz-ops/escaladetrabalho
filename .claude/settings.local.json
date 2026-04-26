@@ -112,7 +112,8 @@
       "Bash(python3)",
       "Bash(curl -s http://localhost:8000/ -o /dev/null -w \"%{http_code}\")",
       "Bash(python -m uvicorn app.main:app --port 8000)",
-      "Bash(.venv/bin/uvicorn app.main:app --port 8000)"
+      "Bash(.venv/bin/uvicorn app.main:app --port 8000)",
+      "Bash(pkill -f \"uvicorn\")"
     ]
   }
 }

@@ -1013,12 +1013,12 @@ def gerar_escala_colab_auto(
                 dom = dom_por_semana.get(seg)
                 if primeira_sem_bloq:
                     # Já tem folga do mês anterior nesta semana: tenta apenas o domingo
-                    # (dias mid-week da primeira semana pertencem ao mês anterior)
                     candidatos = [dom] if dom else []
                 else:
-                    candidatos = ([dom] if dom else []) + [
-                        d for d in dates_sem if d.weekday() in MIDWEEK_DOWS
-                    ]
+                    # Folga de domingo obrigatória: só o domingo é candidato.
+                    # (Para mulheres é a regra do 3° consecutivo; para homens é a 1/mês.)
+                    # Se o Fallback 2 precisar forçar, ele força o domingo mesmo com mínimo baixo.
+                    candidatos = [dom] if dom else []
             else:
                 if primeira_sem_bloq:
                     # Sem domingo de folga + folga do mês anterior: pula a semana
@@ -1136,8 +1136,8 @@ def gerar_escala_colab_auto(
         DIAS_VALIDOS_FOLGA = set(MIDWEEK_DOWS)  # Seg/Ter/Qua apenas — domingo gerenciado pelo plano principal
 
         def _nao_consecutiva(c, fs):
-            """True se c não está adjacente a nenhuma folga já em fs."""
-            return (c - _td(days=1)) not in fs and (c + _td(days=1)) not in fs
+            """True se c está a pelo menos 4 dias de distância de qualquer folga em fs."""
+            return not any((c + _td(days=k)) in fs for k in range(-3, 4) if k != 0)
 
         folgas_set = set(folgas_planejadas)
         streak = streak_inicial.get(fid, 0)  # inicia com dias trabalhados no fim do mês anterior
@@ -1155,7 +1155,7 @@ def gerar_escala_colab_auto(
                 streak = 0
             else:
                 streak += 1
-                if streak == 7:
+                if streak >= 7:
                     inserido = False
                     # Passa 1: olha para trás (até 6 dias), sem criar consecutivos
                     for k in range(1, 7):
@@ -1169,7 +1169,7 @@ def gerar_escala_colab_auto(
                                 f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
                                 f"para evitar 7 dias seguidos."
                             )
-                            streak = 0
+                            streak = k  # k dias foram trabalhados desde a folga retroativa até d
                             inserido = True
                             break
                     # Passa 2: olha para frente (até 6 dias), sem criar consecutivos
@@ -1200,7 +1200,7 @@ def gerar_escala_colab_auto(
                                     f"{f['nome']}: folga extra em {c.strftime('%d/%m')} "
                                     f"(próxima de outra folga) para evitar 7 dias seguidos."
                                 )
-                                streak = 0
+                                streak = k  # k dias trabalhados desde a folga retroativa até d
                                 inserido = True
                                 break
                     # Fallback absoluto: busca dia válido SEM consecutivos; se não
