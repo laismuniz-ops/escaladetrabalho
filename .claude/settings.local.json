@@ -109,7 +109,10 @@
       "Bash(python3 -c \"import app.models; print\\('OK'\\)\")",
       "Bash(python3 -c \"import app.main; print\\('OK'\\)\")",
       "Bash(python3 -c \"import app.models; print\\(app.models.SETORES_ORDEM\\)\")",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(curl -s http://localhost:8000/ -o /dev/null -w \"%{http_code}\")",
+      "Bash(python -m uvicorn app.main:app --port 8000)",
+      "Bash(.venv/bin/uvicorn app.main:app --port 8000)"
     ]
   }
 }

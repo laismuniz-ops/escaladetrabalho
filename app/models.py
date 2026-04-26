@@ -979,8 +979,9 @@ def gerar_escala_colab_auto(
                     if _dp.weekday() != 6:
                         continue
                     _t_prev = esc_ant_f_map.get(_dp.isoformat(), "")
-                    if not _t_prev or _t_prev in ("FOLGA", "FERIAS", "AFASTAMENTO"):
-                        break  # sem registro ou domingo de descanso — para a contagem
+                    if _t_prev in ("FOLGA", "FERIAS", "AFASTAMENTO"):
+                        break  # domingo de descanso explícito — para a contagem
+                    # sem registro (dia não preenchido no BD) ou turno de trabalho → conta como trabalhado
                     consec_antes += 1
                     if consec_antes >= 2:
                         break  # máximo que precisamos saber é 2
@@ -1132,7 +1133,7 @@ def gerar_escala_colab_auto(
                 folgas_planejadas.append(folga_ok)
 
         # ── Corrige streaks > 6 dias consecutivos ─────────────────────────────
-        DIAS_VALIDOS_FOLGA = set(MIDWEEK_DOWS) | {6}  # Seg/Ter/Qua + Dom
+        DIAS_VALIDOS_FOLGA = set(MIDWEEK_DOWS)  # Seg/Ter/Qua apenas — domingo gerenciado pelo plano principal
 
         def _nao_consecutiva(c, fs):
             """True se c não está adjacente a nenhuma folga já em fs."""
