@@ -1033,16 +1033,22 @@ def gerar_escala_colab_auto(
             for d in candidatos:
                 if d not in datas_alvo:
                     continue
-                # ── Check: sem folgas consecutivas ────────────────────
-                d_ant  = d - _td(days=1)
-                d_prox = d + _td(days=1)
+                # ── Check: sem folgas a menos de 3 dias de distância ──────────
                 ant_folga = False
-                if d_ant < datas_mes[0]:  # dia anterior está no mês passado
-                    ant_turno = escala_mes_ant.get(fid, {}).get(d_ant.isoformat(), "")
-                    ant_folga = ant_turno in ("FOLGA", "FERIAS", "AFASTAMENTO")
-                if (d_ant in folgas_set_ate_agora
-                        or d_prox in folgas_set_ate_agora
-                        or ant_folga):
+                for _dk in range(1, 3):  # checa d-2, d-1
+                    _dp_ant = d - _td(days=_dk)
+                    if _dp_ant < datas_mes[0]:
+                        _t = escala_mes_ant.get(fid, {}).get(_dp_ant.isoformat(), "")
+                        if _t in ("FOLGA", "FERIAS", "AFASTAMENTO"):
+                            ant_folga = True
+                            break
+                if ant_folga:
+                    continue
+                if any(
+                    (d - _td(days=k)) in folgas_set_ate_agora
+                    or (d + _td(days=k)) in folgas_set_ate_agora
+                    for k in range(1, 3)
+                ):
                     continue  # tenta próximo candidato
                 # ── Check: respeita mínimos do setor ──────────────────
                 dow    = d.weekday()
@@ -1136,8 +1142,8 @@ def gerar_escala_colab_auto(
         DIAS_VALIDOS_FOLGA = set(MIDWEEK_DOWS)  # Seg/Ter/Qua apenas — domingo gerenciado pelo plano principal
 
         def _nao_consecutiva(c, fs):
-            """True se c está a pelo menos 4 dias de distância de qualquer folga em fs."""
-            return not any((c + _td(days=k)) in fs for k in range(-3, 4) if k != 0)
+            """True se c não está adjacente (±1 dia) a nenhuma folga em fs."""
+            return (c - _td(days=1)) not in fs and (c + _td(days=1)) not in fs
 
         folgas_set = set(folgas_planejadas)
         streak = streak_inicial.get(fid, 0)  # inicia com dias trabalhados no fim do mês anterior

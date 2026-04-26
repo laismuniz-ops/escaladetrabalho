@@ -43,11 +43,6 @@
 
     <!-- Grade -->
     <div class="gs-card overflow-auto" style="max-height: 75vh; position: relative;">
-    <button onclick="abrirModalPdfEntr()"
-            style="position:sticky;top:6px;float:right;margin:4px 6px 0 0;z-index:25;"
-            class="gs-btn gs-btn-ghost text-xs py-1 px-2 opacity-70 hover:opacity-100 whitespace-nowrap">
-        📄 PDF
-    </button>
     <table class="border-collapse text-xs min-w-full">
         <thead>
             <tr>
@@ -288,8 +283,8 @@
         </form>
 
         <div class="flex gap-3 justify-end pt-2 border-t border-brand-border">
-            <button onclick="fecharModalPdfEntr()" class="gs-btn gs-btn-ghost">Cancelar</button>
-            <button onclick="executarPdfEntr()" class="gs-btn gs-btn-primary">📄 Baixar PDF</button>
+            <button type="button" onclick="fecharModalPdfEntr()" class="gs-btn gs-btn-ghost">Cancelar</button>
+            <button type="button" onclick="executarPdfEntr()" class="gs-btn gs-btn-primary">📄 Baixar PDF</button>
         </div>
     </div>
     </div>
@@ -516,7 +511,7 @@
 .cor-btn.cor-normal  { color: #ef4444; }
 
 /* Calendário do modal */
-#g-calendario, #l-calendario { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+#g-calendario, #l-calendario, #pdf-entr-cal { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
 .gcal-hdr { text-align:center; font-size:0.58rem; font-weight:700; color:#80807b;
             letter-spacing:0.08em; text-transform:uppercase; padding:2px 0; }
 .gcal-dia {

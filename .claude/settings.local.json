@@ -113,7 +113,9 @@
       "Bash(curl -s http://localhost:8000/ -o /dev/null -w \"%{http_code}\")",
       "Bash(python -m uvicorn app.main:app --port 8000)",
       "Bash(.venv/bin/uvicorn app.main:app --port 8000)",
-      "Bash(pkill -f \"uvicorn\")"
+      "Bash(pkill -f \"uvicorn\")",
+      "Bash(curl -s -X POST http://localhost:8000/pdf/entregadores -d mes=2026-04 -d dias_especificos=2026-04-01 -d dias_especificos=2026-04-02 -b session=admin -D - -o /tmp/test_pdf.pdf)",
+      "Bash(.venv/bin/python3 -)"
     ]
   }
 }
